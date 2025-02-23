@@ -6,38 +6,47 @@ package data
 
 import (
 	"database/sql"
-	"time"
+
+	"github.com/google/uuid"
 )
 
 type Impact struct {
-	ID        string
-	SubjectID string
-	Reasoning string
-	Category  string
-	Value     int64
+	ID          uuid.UUID
+	RecordID    uuid.NullUUID
+	Description string
+	Value       int16
+	Category    int16
 }
 
-type ImpactRevision struct {
-	ID       string
-	ImpactID string
+type Link struct {
+	ID        uuid.UUID
+	RecordID  uuid.NullUUID
+	RecordId2 uuid.NullUUID
+	Strength  int16
+}
+
+type Record struct {
+	ID           uuid.UUID
+	Title        string
+	Description  string
+	Location     sql.NullString
+	Significance sql.NullString
+	Url          string
+	StartDate    sql.NullTime
+	EndDate      sql.NullTime
+	Type         int16
+	Status       int16
 }
 
 type SchemaMigration struct {
 	Version string
 }
 
-type Subject struct {
-	ID          string
+type Source struct {
+	ID          uuid.UUID
+	RecordID    uuid.NullUUID
 	Title       string
-	Summary     string
-	SubjectType sql.NullString
+	Type        int16
 	Url         string
-	Weight      sql.NullInt64
-	FromDate    time.Time
-	UntilDate   time.Time
-}
-
-type SubjectRelation struct {
-	Subject1 sql.NullString
-	Subject2 sql.NullString
+	Description sql.NullString
 }

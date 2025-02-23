@@ -8,71 +8,85 @@ package data
 import (
 	"context"
 	"database/sql"
-	"time"
+
+	"github.com/google/uuid"
 )
 
-const createSubject = `-- name: CreateSubject :one
-insert into subjects (
-        id,
-        title,
-        summary,
-        subject_type,
-        url,
-        weight,
-        from_date,
-        until_date
-    )
-values (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id
+const createRecord = `-- name: CreateRecord :one
+insert into record (title, description, location, significance, url, start_date, end_date, status, type)
+values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+returning id, title, description, location, significance, url, start_date, end_date, type, status
 `
 
-type CreateSubjectParams struct {
-	ID          string
-	Title       string
-	Summary     string
-	SubjectType sql.NullString
-	Url         string
-	Weight      sql.NullInt64
-	FromDate    time.Time
-	UntilDate   time.Time
+type CreateRecordParams struct {
+	Title        string
+	Description  string
+	Location     sql.NullString
+	Significance sql.NullString
+	Url          string
+	StartDate    sql.NullTime
+	EndDate      sql.NullTime
+	Status       int16
+	Type         int16
 }
 
-func (q *Queries) CreateSubject(ctx context.Context, arg CreateSubjectParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, createSubject,
+func (q *Queries) CreateRecord(ctx context.Context, arg CreateRecordParams) (Record, error) {
+	row := q.db.QueryRowContext(ctx, createRecord,
+		arg.Title,
+		arg.Description,
+		arg.Location,
+		arg.Significance,
+		arg.Url,
+		arg.StartDate,
+		arg.EndDate,
+		arg.Status,
+		arg.Type,
+	)
+	var i Record
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Description,
+		&i.Location,
+		&i.Significance,
+		&i.Url,
+		&i.StartDate,
+		&i.EndDate,
+		&i.Type,
+		&i.Status,
+	)
+	return i, err
+}
+
+const updateRecord = `-- name: UpdateRecord :exec
+update record
+set title = $2, description = $3, location = $4, significance = $5, url = $6, start_date = $7, end_date = $8, status = $9
+where id = $1
+`
+
+type UpdateRecordParams struct {
+	ID           uuid.UUID
+	Title        string
+	Description  string
+	Location     sql.NullString
+	Significance sql.NullString
+	Url          string
+	StartDate    sql.NullTime
+	EndDate      sql.NullTime
+	Status       int16
+}
+
+func (q *Queries) UpdateRecord(ctx context.Context, arg UpdateRecordParams) error {
+	_, err := q.db.ExecContext(ctx, updateRecord,
 		arg.ID,
 		arg.Title,
-		arg.Summary,
-		arg.SubjectType,
+		arg.Description,
+		arg.Location,
+		arg.Significance,
 		arg.Url,
-		arg.Weight,
-		arg.FromDate,
-		arg.UntilDate,
-	)
-	var id string
-	err := row.Scan(&id)
-	return id, err
-}
-
-const createSubjectImpact = `-- name: CreateSubjectImpact :exec
-insert into impacts (id, subject_id, reasoning, category, value)
-values (?, ?, ?, ?, ?)
-`
-
-type CreateSubjectImpactParams struct {
-	ID        string
-	SubjectID string
-	Reasoning string
-	Category  string
-	Value     int64
-}
-
-func (q *Queries) CreateSubjectImpact(ctx context.Context, arg CreateSubjectImpactParams) error {
-	_, err := q.db.ExecContext(ctx, createSubjectImpact,
-		arg.ID,
-		arg.SubjectID,
-		arg.Reasoning,
-		arg.Category,
-		arg.Value,
+		arg.StartDate,
+		arg.EndDate,
+		arg.Status,
 	)
 	return err
 }

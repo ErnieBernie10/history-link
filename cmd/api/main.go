@@ -1,33 +1,34 @@
 package main
 
 import (
-	"berniestack/internal/features/subject"
 	"database/sql"
 	"fmt"
 	"log"
 	"os"
 
-	data "berniestack/internal/db"
+	data "historylink/internal/db"
+	"historylink/internal/features/record"
 
 	"github.com/go-fuego/fuego"
-	_ "github.com/jackc/pgx/v5"
 	_ "github.com/joho/godotenv/autoload"
+	_ "github.com/lib/pq"
 )
 
 func main() {
 
-	s := fuego.NewServer()
 	port := os.Getenv("PORT")
 	connStr := os.Getenv("DATABASE_URL")
-	fuego.WithAddr("localhost:" + port)(s)
+	s := fuego.NewServer(
+		fuego.WithAddr("localhost:" + port),
+	)
 
-	conn, err := sql.Open("sqlite3", connStr)
+	conn, err := sql.Open("postgres", connStr)
 	defer conn.Close()
 	if err != nil {
 		panic(err)
 	}
 	db := data.New(conn)
-	rs := subject.NewSubjectResources(db)
+	rs := record.NewRecordResources(db)
 	rs.MountRoutes(s)
 
 	err = s.Run()

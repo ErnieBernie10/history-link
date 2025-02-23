@@ -14,25 +14,45 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: impact_revisions; Type: TABLE; Schema: public; Owner: -
+-- Name: impact; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.impact_revisions (
-    id text NOT NULL,
-    impact_id text NOT NULL
+CREATE TABLE public.impact (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    record_id uuid,
+    description character varying(255) NOT NULL,
+    value smallint NOT NULL,
+    category smallint NOT NULL
 );
 
 
 --
--- Name: impacts; Type: TABLE; Schema: public; Owner: -
+-- Name: link; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.impacts (
-    id text NOT NULL,
-    subject_id text NOT NULL,
-    reasoning character varying NOT NULL,
-    category character varying(50) NOT NULL,
-    value integer NOT NULL
+CREATE TABLE public.link (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    record_id uuid,
+    record_id2 uuid,
+    strength smallint NOT NULL
+);
+
+
+--
+-- Name: record; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.record (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    title character varying(255) NOT NULL,
+    description character varying(255) NOT NULL,
+    location character varying(255) DEFAULT ''::character varying,
+    significance character varying(255) DEFAULT ''::character varying,
+    url character varying(255) NOT NULL,
+    start_date timestamp without time zone,
+    end_date timestamp without time zone,
+    type smallint NOT NULL,
+    status smallint NOT NULL
 );
 
 
@@ -46,45 +66,41 @@ CREATE TABLE public.schema_migrations (
 
 
 --
--- Name: subject_relations; Type: TABLE; Schema: public; Owner: -
+-- Name: source; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.subject_relations (
-    subject_1 text NOT NULL,
-    subject_2 text NOT NULL
+CREATE TABLE public.source (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    record_id uuid,
+    title character varying(255) NOT NULL,
+    type smallint NOT NULL,
+    url character varying(255) NOT NULL,
+    description character varying(255)
 );
 
 
 --
--- Name: subjects; Type: TABLE; Schema: public; Owner: -
+-- Name: impact impact_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-CREATE TABLE public.subjects (
-    id text NOT NULL,
-    title character varying NOT NULL,
-    summary character varying NOT NULL,
-    subject_type character varying(50),
-    url character varying NOT NULL,
-    weight integer,
-    from_date date NOT NULL,
-    until_date date NOT NULL
-);
+ALTER TABLE ONLY public.impact
+    ADD CONSTRAINT impact_pkey PRIMARY KEY (id);
 
 
 --
--- Name: impact_revisions impact_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: link link_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.impact_revisions
-    ADD CONSTRAINT impact_revisions_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.link
+    ADD CONSTRAINT link_pkey PRIMARY KEY (id);
 
 
 --
--- Name: impacts impacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: record record_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.impacts
-    ADD CONSTRAINT impacts_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.record
+    ADD CONSTRAINT record_pkey PRIMARY KEY (id);
 
 
 --
@@ -96,51 +112,43 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
--- Name: subject_relations subject_relations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: source source_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.subject_relations
-    ADD CONSTRAINT subject_relations_pkey PRIMARY KEY (subject_1, subject_2);
-
-
---
--- Name: subjects subjects_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.subjects
-    ADD CONSTRAINT subjects_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.source
+    ADD CONSTRAINT source_pkey PRIMARY KEY (id);
 
 
 --
--- Name: impact_revisions impact_revisions_impact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: impact impact_record_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.impact_revisions
-    ADD CONSTRAINT impact_revisions_impact_id_fkey FOREIGN KEY (impact_id) REFERENCES public.impacts(id);
-
-
---
--- Name: impacts impacts_subject_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.impacts
-    ADD CONSTRAINT impacts_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id);
+ALTER TABLE ONLY public.impact
+    ADD CONSTRAINT impact_record_id_fkey FOREIGN KEY (record_id) REFERENCES public.record(id) ON DELETE CASCADE;
 
 
 --
--- Name: subject_relations subject_relations_subject_1_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: link link_record_id2_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.subject_relations
-    ADD CONSTRAINT subject_relations_subject_1_fkey FOREIGN KEY (subject_1) REFERENCES public.subjects(id);
+ALTER TABLE ONLY public.link
+    ADD CONSTRAINT link_record_id2_fkey FOREIGN KEY (record_id2) REFERENCES public.record(id) ON DELETE CASCADE;
 
 
 --
--- Name: subject_relations subject_relations_subject_2_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: link link_record_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.subject_relations
-    ADD CONSTRAINT subject_relations_subject_2_fkey FOREIGN KEY (subject_2) REFERENCES public.subjects(id);
+ALTER TABLE ONLY public.link
+    ADD CONSTRAINT link_record_id_fkey FOREIGN KEY (record_id) REFERENCES public.record(id) ON DELETE CASCADE;
+
+
+--
+-- Name: source source_record_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source
+    ADD CONSTRAINT source_record_id_fkey FOREIGN KEY (record_id) REFERENCES public.record(id) ON DELETE CASCADE;
 
 
 --
@@ -153,5 +161,4 @@ ALTER TABLE ONLY public.subject_relations
 --
 
 INSERT INTO public.schema_migrations (version) VALUES
-    ('20250218182804'),
-    ('20250218183047');
+    ('20250223144317');

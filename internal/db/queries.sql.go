@@ -7,50 +7,56 @@ package data
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-const getSubject = `-- name: GetSubject :one
-select id, title, summary, subject_type, url, weight, from_date, until_date from subjects where id = ?
+const getRecord = `-- name: GetRecord :one
+select id, title, description, location, significance, url, start_date, end_date, type, status from record where id = $1
 `
 
-func (q *Queries) GetSubject(ctx context.Context, id string) (Subject, error) {
-	row := q.db.QueryRowContext(ctx, getSubject, id)
-	var i Subject
+func (q *Queries) GetRecord(ctx context.Context, id uuid.UUID) (Record, error) {
+	row := q.db.QueryRowContext(ctx, getRecord, id)
+	var i Record
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
-		&i.Summary,
-		&i.SubjectType,
+		&i.Description,
+		&i.Location,
+		&i.Significance,
 		&i.Url,
-		&i.Weight,
-		&i.FromDate,
-		&i.UntilDate,
+		&i.StartDate,
+		&i.EndDate,
+		&i.Type,
+		&i.Status,
 	)
 	return i, err
 }
 
-const getSubjects = `-- name: GetSubjects :many
-select id, title, summary, subject_type, url, weight, from_date, until_date from subjects
+const getRecords = `-- name: GetRecords :many
+select id, title, description, location, significance, url, start_date, end_date, type, status from record
 `
 
-func (q *Queries) GetSubjects(ctx context.Context) ([]Subject, error) {
-	rows, err := q.db.QueryContext(ctx, getSubjects)
+func (q *Queries) GetRecords(ctx context.Context) ([]Record, error) {
+	rows, err := q.db.QueryContext(ctx, getRecords)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Subject
+	var items []Record
 	for rows.Next() {
-		var i Subject
+		var i Record
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
-			&i.Summary,
-			&i.SubjectType,
+			&i.Description,
+			&i.Location,
+			&i.Significance,
 			&i.Url,
-			&i.Weight,
-			&i.FromDate,
-			&i.UntilDate,
+			&i.StartDate,
+			&i.EndDate,
+			&i.Type,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
