@@ -25,7 +25,9 @@ services:
       ZITADEL_DATABASE_POSTGRES_ADMIN_USERNAME: postgres
       ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD: postgres
       ZITADEL_DATABASE_POSTGRES_ADMIN_SSL_MODE: disable
-      ZITADEL_EXTERNALSECURE: false
+      ZITADEL_EXTERNALSECURE: true
+      ZITADEL_EXTERNALDOMAIN: 'zitadel.arne-boedt.be'
+      ZITADEL_EXTERNALPORT: 443
     depends_on:
       db:
         condition: 'service_healthy'

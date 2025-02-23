@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func PathParamUuid(c fuego.ContextWithBody[any], paramname string) (uuid.UUID, error) {
+func PathParamUuid[T any](c fuego.ContextWithBody[T], paramname string) (uuid.UUID, error) {
 	param := c.PathParam(paramname)
 	paramValue, err := uuid.Parse(param)
 	if err != nil {
