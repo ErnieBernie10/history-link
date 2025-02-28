@@ -34,7 +34,7 @@ func (rs RecordResources) create(c context.Context, input *struct {
 	return &struct {
 		Body recordResponseBody
 	}{
-		Body: toResponse(response),
+		Body: response,
 	}, nil
 }
 
@@ -56,7 +56,7 @@ func (rs RecordResources) getById(c context.Context, input *struct {
 	return &struct {
 		Body recordResponseBody
 	}{
-		Body: toResponse(record),
+		Body: record,
 	}, nil
 }
 
@@ -73,26 +73,32 @@ func (rs RecordResources) update(c context.Context, input *struct {
 }
 
 func (rs RecordResources) getPaged(c context.Context, input *struct {
-	Page     int `query:"page"`
-	PageSize int `query:"pageSize"`
+	Page     int `query:"page" minimum:"1" default:"1"`
+	PageSize int `query:"pageSize" minimum:"1" default:"10"`
 }) (*struct {
-	Body pagedResponse[recordResponseBody]
+	Body []recordResponseBody
 }, error) {
 	records, err := rs.RecordService.GetPaged(c, input.Page, input.PageSize)
 	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return nil, huma.Error404NotFound("No records found")
-		default:
-			return nil, err
-		}
+		return nil, err
 	}
 
 	return &struct {
-		Body pagedResponse[recordResponseBody]
+		Body []recordResponseBody
 	}{
-		Body: toPagedResponse(records, input.Page, input.PageSize),
+		Body: records,
 	}, nil
+}
+
+func (rs RecordResources) delete(c context.Context, input *struct {
+	ID uuid.UUID `path:"id"`
+}) (*struct{}, error) {
+	err := rs.RecordService.Delete(c, input.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &struct{}{}, nil
 }
 
 func (rs RecordResources) MountRoutes(s huma.API) {
@@ -119,4 +125,9 @@ func (rs RecordResources) MountRoutes(s huma.API) {
 		Path:          "/record/",
 		DefaultStatus: http.StatusOK,
 	}, rs.getPaged)
+	huma.Register(s, huma.Operation{
+		OperationID: "delete-record",
+		Method:      http.MethodDelete,
+		Path:        "/record/{id}",
+	}, rs.delete)
 }

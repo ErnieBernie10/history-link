@@ -1,6 +1,8 @@
 package record
 
 import (
+	"historylink/internal/common"
+
 	"github.com/google/uuid"
 )
 
@@ -23,8 +25,8 @@ type recordResponseBody struct {
 	ID           uuid.UUID        `json:"id"`
 	Title        string           `json:"title"`
 	Description  string           `json:"description"`
-	Location     string           `json:"location"`
-	Significance string           `json:"significance"`
+	Location     *string          `json:"location"`
+	Significance *string          `json:"significance"`
 	Url          string           `json:"url"`
 	StartDate    string           `json:"startDate"`
 	EndDate      string           `json:"endDate"`
@@ -68,52 +70,54 @@ type createImpactCommandBody struct {
 }
 
 type updateImpactCommandBody struct {
-	ID          uuid.UUID `json:"id" path:"id"`
+	ID          uuid.UUID `json:"id,omitempty"`
 	Description string    `json:"description"`
 	Value       int       `json:"value"`
 	Category    int       `json:"category"`
-	RecordId    uuid.UUID `json:"recordId"`
+	RecordId    uuid.UUID `json:"recordId,omitempty"`
 }
 
-func toResponse(record Record) recordResponseBody {
+func toResponse(record RecordAggregate) recordResponseBody {
 	return recordResponseBody{
 		ID:           record.ID,
 		Title:        record.Title,
 		Description:  record.Description,
-		Location:     record.Location.String,
-		Significance: record.Significance.String,
-		Url:          record.Url,
-		StartDate:    record.StartDate.Time.Format("200601021504"),
-		EndDate:      record.EndDate.Time.Format("200601021504"),
-		RecordStatus: RecordStatus(record.RecordStatus),
+		Location:     record.Location,
+		Significance: record.Significance,
+		Url:          record.URL,
+		StartDate:    common.ToDateString(record.StartDate),
+		EndDate:      common.ToDateString(record.EndDate),
+		RecordStatus: RecordStatus(record.Status),
 		Type:         Type(record.Type),
-		Impacts:      toImpactResponse(record.Impacts),
+		Impacts:      toImpactResponse(record),
 	}
 }
 
-func toImpactResponse(impacts []Impact) []impactResponse {
+func toImpactResponse(record RecordAggregate) []impactResponse {
 	var response []impactResponse
-	for _, impact := range impacts {
+	for _, impact := range record.Impacts {
 		response = append(response, impactResponse{
-			Value:       impact.Value,
-			Category:    impact.Category,
+			Value:       int(impact.Value),
+			Category:    int(impact.Category),
 			Description: impact.Description,
 			ID:          impact.ID,
-			RecordID:    impact.RecordID,
+			RecordID:    *impact.RecordID,
 		})
 	}
 	return response
 }
 
-func toPagedResponse(records []Record, page int, pageSize int) pagedResponse[recordResponseBody] {
-	var recordsResponse []recordResponseBody
-	for _, record := range records {
-		recordsResponse = append(recordsResponse, toResponse(record))
-	}
-	return pagedResponse[recordResponseBody]{
-		Page:    page,
-		Size:    pageSize,
-		Total:   len(records),
-		Records: recordsResponse,
-	}
-}
+//
+//func toPagedResponse(records []Record, page int, pageSize int) pagedResponse[recordResponseBody] {
+//	var recordsResponse []recordResponseBody
+//	for _, record := range records {
+//		recordsResponse = append(recordsResponse, toResponse(record))
+//	}
+//	return pagedResponse[recordResponseBody]{
+//		Page:    page,
+//		Size:    pageSize,
+//		Total:   len(records),
+//		Records: recordsResponse,
+//	}
+//}
+//

@@ -3,7 +3,7 @@ package record
 import (
 	"context"
 	"errors"
-	"historylink/internal/db"
+	"historylink/.gen/historylink/public/model"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,10 +16,11 @@ func NewRecordService(recordRepository IRecordRepository) IRecordService {
 }
 
 type IRecordService interface {
-	Create(c context.Context, command createRecordCommandBody) (Record, error)
+	Create(c context.Context, command createRecordCommandBody) (recordResponseBody, error)
 	Update(c context.Context, id uuid.UUID, command updateRecordCommandBody) error
-	GetById(id uuid.UUID) (Record, error)
-	GetPaged(c context.Context, page, pageSize int) ([]Record, error)
+	GetById(id uuid.UUID) (recordResponseBody, error)
+	GetPaged(c context.Context, page, pageSize int) ([]recordResponseBody, error)
+	Delete(c context.Context, id uuid.UUID) error
 }
 
 type RecordService struct {
@@ -44,57 +45,68 @@ const (
 	Object
 )
 
-func (s RecordService) Create(context context.Context, command createRecordCommandBody) (Record, error) {
+func (s RecordService) Create(context context.Context, command createRecordCommandBody) (recordResponseBody, error) {
 	startDate, err := time.Parse("200601021504", command.StartDate)
 	if err != nil {
-		return Record{}, err
+		return recordResponseBody{}, err
 	}
 	endDate, err := time.Parse("200601021504", command.EndDate)
 	if err != nil {
-		return Record{}, err
+		return recordResponseBody{}, err
 	}
-	return s.recordRepository.Create(context, Record{
-		Title:        command.Title,
-		Description:  command.Description,
-		Location:     db.NewNullString(command.Location),
-		Significance: db.NewNullString(command.Significance),
-		Url:          command.Url,
-		StartDate:    db.NewNullTime(startDate),
-		EndDate:      db.NewNullTime(endDate),
-		Type:         int16(command.Type),
-		RecordStatus: int16(command.RecordStatus),
-		Impacts:      mapCreateImpacts(command.Impacts),
+	response, err := s.recordRepository.Create(context, RecordAggregate{
+		Record: model.Record{
+			Title:        command.Title,
+			Description:  command.Description,
+			Location:     &command.Location,
+			Significance: &command.Significance,
+			URL:          command.Url,
+			StartDate:    &startDate,
+			EndDate:      &endDate,
+			Type:         int16(command.Type),
+			Status:       int16(command.RecordStatus),
+		},
+		Impacts: mapCreateImpacts(command.Impacts),
 	})
+	if err != nil {
+		return recordResponseBody{}, err
+	}
+	return toResponse(response), nil
 }
 
-func mapUpdateImpacts(impactCommands []updateImpactCommandBody) []Impact {
-	impacts := make([]Impact, len(impactCommands))
+func mapUpdateImpacts(impactCommands []updateImpactCommandBody) []struct{ model.Impact } {
+	impacts := make([]struct{ model.Impact }, len(impactCommands))
 	for i, command := range impactCommands {
-		impacts[i] = Impact{
+		impacts[i].Impact = model.Impact{
 			ID:          command.ID,
 			Description: command.Description,
-			Value:       command.Value,
-			Category:    command.Category,
-			RecordID:    command.RecordId,
+			Value:       int16(command.Value),
+			Category:    int16(command.Category),
+			RecordID:    &command.RecordId,
 		}
 	}
 	return impacts
 }
 
-func mapCreateImpacts(impactCommands []createImpactCommandBody) []Impact {
-	impacts := make([]Impact, len(impactCommands))
+func mapCreateImpacts(impactCommands []createImpactCommandBody) []struct{ model.Impact } {
+	impacts := make([]struct{ model.Impact }, len(impactCommands))
 	for i, command := range impactCommands {
-		impacts[i] = Impact{
+		impacts[i].Impact = model.Impact{
+			ID:          uuid.New(),
 			Description: command.Description,
-			Value:       command.Value,
-			Category:    command.Category,
+			Value:       int16(command.Value),
+			Category:    int16(command.Category),
 		}
 	}
 	return impacts
 }
 
-func (s RecordService) GetById(id uuid.UUID) (Record, error) {
-	return s.recordRepository.GetById(id)
+func (s RecordService) GetById(id uuid.UUID) (recordResponseBody, error) {
+	record, err := s.recordRepository.GetById(id)
+	if err != nil {
+		return recordResponseBody{}, err
+	}
+	return toResponse(record), nil
 }
 
 func (s RecordService) Update(c context.Context, id uuid.UUID, command updateRecordCommandBody) error {
@@ -109,21 +121,35 @@ func (s RecordService) Update(c context.Context, id uuid.UUID, command updateRec
 	if err != nil {
 		return err
 	}
-	return s.recordRepository.Update(c, Record{
-		ID:           command.ID,
-		Title:        command.Title,
-		Description:  command.Description,
-		Location:     db.NewNullString(command.Location),
-		Significance: db.NewNullString(command.Significance),
-		Url:          command.Url,
-		StartDate:    db.NewNullTime(startDate),
-		EndDate:      db.NewNullTime(endDate),
-		Type:         int16(command.Type),
-		RecordStatus: int16(command.RecordStatus),
-		Impacts:      mapUpdateImpacts(command.Impacts),
+	return s.recordRepository.Update(c, RecordAggregate{
+		Record: model.Record{
+			ID:           command.ID,
+			Title:        command.Title,
+			Description:  command.Description,
+			Location:     &command.Location,
+			Significance: &command.Significance,
+			URL:          command.Url,
+			StartDate:    &startDate,
+			EndDate:      &endDate,
+			Type:         int16(command.Type),
+			Status:       int16(command.RecordStatus),
+		},
+		Impacts: mapUpdateImpacts(command.Impacts),
 	})
 }
 
-func (s RecordService) GetPaged(c context.Context, page int, pageSize int) ([]Record, error) {
-	return s.recordRepository.GetPaged(c, pageSize, (page-1)*pageSize)
+func (s RecordService) GetPaged(c context.Context, page, pageSize int) ([]recordResponseBody, error) {
+	records, err := s.recordRepository.GetPaged(c, pageSize, (page-1)*pageSize)
+	if err != nil {
+		return nil, err
+	}
+	var response []recordResponseBody
+	for _, record := range records {
+		response = append(response, toResponse(record))
+	}
+	return response, nil
+}
+
+func (s RecordService) Delete(c context.Context, id uuid.UUID) error {
+	return s.recordRepository.Delete(c, id)
 }

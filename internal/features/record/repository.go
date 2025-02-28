@@ -3,12 +3,12 @@ package record
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"fmt"
-	"historylink/internal/db"
+	"historylink/.gen/historylink/public/model"
+	. "historylink/.gen/historylink/public/table"
+
+	. "github.com/go-jet/jet/v2/postgres"
 
 	"github.com/google/uuid"
-	"github.com/huandu/go-sqlbuilder"
 )
 
 func NewRepository(db *sql.DB) IRecordRepository {
@@ -18,309 +18,225 @@ func NewRepository(db *sql.DB) IRecordRepository {
 }
 
 type IRecordRepository interface {
-	GetById(uuid.UUID) (Record, error)
-	Create(c context.Context, command Record) (Record, error)
-	Update(c context.Context, command Record) error
-	GetPaged(c context.Context, limit int, offset int) ([]Record, error)
+	GetById(uuid.UUID) (RecordAggregate, error)
+	Create(c context.Context, command RecordAggregate) (RecordAggregate, error)
+	Update(c context.Context, command RecordAggregate) error
+	Delete(c context.Context, id uuid.UUID) error
+	GetPaged(c context.Context, limit int, offset int) ([]RecordAggregate, error)
 }
 type RecordRepository struct {
 	db *sql.DB
 }
 
-type Impact struct {
-	ID          uuid.UUID `db:"id" fieldtag:"pk"`
-	RecordID    uuid.UUID `db:"record_id"`
-	Description string    `db:"description"`
-	Value       int       `db:"value"`
-	Category    int       `db:"category"`
-}
-
-type Record struct {
-	ID           uuid.UUID      `db:"id" fieldtag:"pk"`
-	Title        string         `db:"title"`
-	Description  string         `db:"description"`
-	Location     sql.NullString `db:"location"`
-	Significance sql.NullString `db:"significance"`
-	Url          string         `db:"url"`
-	StartDate    sql.NullTime   `db:"start_date"`
-	EndDate      sql.NullTime   `db:"end_date"`
-	Type         int16          `db:"type"`
-	RecordStatus int16          `db:"status"`
-	Impacts      []Impact       `db:"-"`
-}
-
-func EqualsImpact(a, b Impact) bool {
-	return a.ID == b.ID &&
-		a.RecordID == b.RecordID &&
-		a.Description == b.Description &&
-		a.Value == b.Value &&
-		a.Category == b.Category
-}
-
-func EqualsRecord(a, b Record) bool {
-	return a.ID == b.ID &&
-		a.Title == b.Title &&
-		a.Description == b.Description &&
-		a.Location.String == b.Location.String &&
-		a.Significance.String == b.Significance.String &&
-		a.Url == b.Url &&
-		a.StartDate == b.StartDate &&
-		a.EndDate == b.EndDate &&
-		a.Type == b.Type &&
-		a.RecordStatus == b.RecordStatus
-}
-
-var recordStruct = sqlbuilder.NewStruct(new(Record)).For(sqlbuilder.PostgreSQL)
-var impactStruct = sqlbuilder.NewStruct(new(Impact)).For(sqlbuilder.PostgreSQL)
-
-func (r RecordRepository) GetById(u uuid.UUID) (Record, error) {
-	sb := recordStruct.SelectFrom("record")
-	sb.Select("*")
-	sb.Where(sb.EQ("id", u.String()))
-
-	q, args := sb.Build()
-
-	row := r.db.QueryRow(q, args...)
-
-	var record Record
-	if err := db.ScanStructRow(row, &record, recordStruct); err != nil {
-		return Record{}, err
+type RecordAggregate struct {
+	model.Record
+	Impacts []struct {
+		model.Impact
 	}
-
-	var err error
-	if record.Impacts, err = r.getImpactsForRecord(record.ID); err != nil {
-		return Record{}, err
-	}
-
-	return record, nil
 }
 
-func (r RecordRepository) getImpactsForRecord(recordId uuid.UUID) ([]Impact, error) {
-	sb := impactStruct.SelectFrom("impact")
-	sb.Select("*")
-	sb.Where(sb.EQ("record_id", recordId.String()))
+func EqualsImpact(a, b struct{ model.Impact }) bool {
+	return a.Impact.ID == b.Impact.ID &&
+		a.Impact.Description == b.Impact.Description &&
+		a.Impact.Value == b.Impact.Value &&
+		a.Impact.Category == b.Impact.Category
+}
 
-	q, args := sb.Build()
+func (r RecordRepository) GetById(id uuid.UUID) (RecordAggregate, error) {
+	stmt := SELECT(
+		Record.AllColumns,
+		Impact.AllColumns,
+	).FROM(
+		Record.LEFT_JOIN(Impact, Impact.RecordID.EQ(Record.ID)),
+	).WHERE(
+		Record.ID.EQ(UUID(id)),
+	)
 
-	rows, err := r.db.Query(q, args...)
+	var dest RecordAggregate
+	err := stmt.Query(r.db, &dest)
 	if err != nil {
-		return []Impact{}, err
+		return dest, err
 	}
-	defer rows.Close()
-
-	var impacts []Impact
-	if err := db.ScanStructRows(rows, &impacts, impactStruct); err != nil {
-		return []Impact{}, err
-	}
-
-	return impacts, nil
+	return dest, nil
 }
 
-func (r RecordRepository) Create(c context.Context, command Record) (Record, error) {
+func (r RecordRepository) Create(c context.Context, command RecordAggregate) (RecordAggregate, error) {
 	tx, err := r.db.BeginTx(c, nil)
 	if err != nil {
-		return Record{}, fmt.Errorf("failed to begin transaction: %w", err)
+		return RecordAggregate{}, err
 	}
 	defer tx.Rollback()
 
-	// Insert the record first
-	record, err := r.insertRecord(tx, command)
+	// Create a result struct to hold the returned data
+	var result RecordAggregate
+
+	// Insert the record and capture the returned data
+	recordStmt := Record.INSERT(Record.Title, Record.Description, Record.Location, Record.Significance, Record.URL, Record.StartDate, Record.EndDate, Record.Type, Record.Status).
+		MODEL(command.Record).
+		RETURNING(Record.AllColumns)
+
+	err = recordStmt.Query(tx, &result.Record)
 	if err != nil {
-		return Record{}, fmt.Errorf("failed to insert record: %w", err)
+		return RecordAggregate{}, err
 	}
 
-	// If there are impacts, insert them
+	// Prepare impacts with the correct record ID if needed
+	for i := range command.Impacts {
+		if command.Impacts[i].RecordID == nil {
+			command.Impacts[i].RecordID = &result.ID
+		}
+	}
+
+	// Insert impacts if any
 	if len(command.Impacts) > 0 {
-		impacts, err := r.insertImpacts(tx, record.ID, command.Impacts)
+		impactStmt := Impact.INSERT(Impact.Description, Impact.Value, Impact.Category, Impact.RecordID).
+			MODELS(command.Impacts).
+			RETURNING(Impact.AllColumns)
+
+		var impacts []struct {
+			model.Impact
+		}
+		err = impactStmt.Query(tx, &impacts)
 		if err != nil {
-			return Record{}, fmt.Errorf("failed to insert impacts: %w", err)
+			return RecordAggregate{}, err
 		}
-		record.Impacts = impacts
+		result.Impacts = impacts
 	}
 
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		return Record{}, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return record, nil
-}
-
-// insertRecord inserts a new record into the database
-func (r RecordRepository) insertRecord(tx *sql.Tx, command Record) (Record, error) {
-	sb := recordStruct.InsertInto("record")
-	sb.Cols("title", "description", "location", "significance", "url", "start_date", "end_date", "type", "status")
-	sb.Values(command.Title, command.Description, command.Location, command.Significance, command.Url, command.StartDate, command.EndDate, command.Type, command.RecordStatus)
-	sb.Returning("*")
-
-	q, args := sb.Build()
-
-	row := tx.QueryRow(q, args...)
-
-	var record Record
-	if err := db.ScanStructRow(row, &record, recordStruct); err != nil {
-		return Record{}, err
-	}
-
-	return record, nil
-}
-
-// insertImpacts inserts impacts for a record into the database
-func (r RecordRepository) insertImpacts(tx *sql.Tx, recordID uuid.UUID, impactCommands []Impact) ([]Impact, error) {
-	sb := impactStruct.InsertInto("impact")
-	sb.Cols("record_id", "description", "value", "category")
-
-	for _, impact := range impactCommands {
-		sb.Values(recordID, impact.Description, impact.Value, impact.Category)
-	}
-	sb.Returning("*")
-
-	q, args := sb.Build()
-
-	rows, err := tx.Query(q, args...)
+	err = tx.Commit()
 	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var impacts []Impact
-	if err := db.ScanStructRows(rows, &impacts, impactStruct); err != nil {
-		return nil, err
+		return RecordAggregate{}, err
 	}
 
-	return impacts, nil
+	return result, nil
 }
 
-func (r RecordRepository) updateImpacts(tx *sql.Tx, recordID uuid.UUID, impactCommands []Impact) error {
-	if len(impactCommands) == 0 {
-		return nil
-	}
-
-	// First, get all the current impacts for this record
-	sb := impactStruct.SelectFrom("impact")
-	sb.Select("*")
-	sb.Where(sb.EQ("record_id", recordID.String()))
-
-	q, args := sb.Build()
-
-	rows, err := tx.Query(q, args...)
-	if err != nil {
-		return fmt.Errorf("failed to fetch current impacts: %w", err)
-	}
-	defer rows.Close()
-
-	var currentImpacts []Impact
-	if err := db.ScanStructRows(rows, &currentImpacts, impactStruct); err != nil {
-		return fmt.Errorf("failed to scan current impacts: %w", err)
-	}
-
-	// Create a map of current impacts by ID for easy lookup
-	currentImpactsMap := make(map[string]Impact)
-	for _, impact := range currentImpacts {
-		currentImpactsMap[impact.ID.String()] = impact
-	}
-
-	// Update only impacts that have changed
-	for _, impactCommand := range impactCommands {
-		// Check if this impact exists in the current impacts
-		currentImpact, exists := currentImpactsMap[impactCommand.ID.String()]
-
-		// Skip update if nothing has changed
-		if exists &&
-			EqualsImpact(currentImpact, impactCommand) {
-			continue
-		}
-
-		// If we got here, we need to update this impact
-		sb := impactStruct.Update("impact", impactCommand)
-		sb.Where(sb.EQ("id", impactCommand.ID.String()))
-		q, args := sb.Build()
-
-		if _, err := tx.Exec(q, args...); err != nil {
-			return fmt.Errorf("failed to update impact %s: %w", impactCommand.ID, err)
-		}
-	}
-
-	return nil
-}
-
-// Update updates a record in the database
-func (r RecordRepository) Update(c context.Context, command Record) error {
+func (r RecordRepository) Update(c context.Context, command RecordAggregate) error {
 	tx, err := r.db.BeginTx(c, nil)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
+		return err
 	}
 	defer tx.Rollback()
-
-	// Update impacts
-	if len(command.Impacts) > 0 {
-		if err := r.updateImpacts(tx, command.ID, command.Impacts); err != nil {
-			return fmt.Errorf("failed to update impacts: %w", err)
-		}
-	}
-
-	if r, err := r.GetById(command.ID); errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("record with id %s not found: %w", command.ID, err)
-	} else if err != nil {
-		return fmt.Errorf("failed to get record: %w", err)
-	} else if EqualsRecord(r, command) {
-		return nil
-	}
 
 	// Update the record
-	sb := recordStruct.Update("record", command)
-	sb.Where(sb.EQ("id", command.ID.String()))
+	recordStmt := Record.UPDATE(Record.Title, Record.Description, Record.Location, Record.Significance, Record.URL, Record.StartDate, Record.EndDate, Record.Type, Record.Status).
+		MODEL(command.Record).
+		WHERE(Record.ID.EQ(UUID(command.ID)))
 
-	q, args := sb.Build()
-
-	_, err = tx.Exec(q, args...)
+	_, err = recordStmt.Exec(tx)
 	if err != nil {
-		return fmt.Errorf("failed to update record: %w", err)
+		return err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	// Handle impacts - first get existing impacts
+	existingImpactsStmt := SELECT(Impact.AllColumns).
+		FROM(Impact).
+		WHERE(Impact.RecordID.EQ(UUID(command.ID)))
+
+	var existingImpacts []struct {
+		model.Impact
 	}
+	err = existingImpactsStmt.Query(tx, &existingImpacts)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+
+	// Create maps for existing and new impacts
+	existingImpactsMap := make(map[uuid.UUID]struct{ model.Impact })
+	for _, impact := range existingImpacts {
+		existingImpactsMap[impact.Impact.ID] = impact
+	}
+
+	newImpactsMap := make(map[uuid.UUID]struct{ model.Impact })
+	for _, impact := range command.Impacts {
+		if impact.Impact.ID != uuid.Nil {
+			newImpactsMap[impact.Impact.ID] = impact
+		}
+	}
+
+	// Process impacts in three groups:
+	// 1. Impacts to update (exist in both maps)
+	// 2. Impacts to delete (exist in existing but not in new)
+	// 3. Impacts to insert (exist in new but not in existing)
+
+	// 1. Update existing impacts that have changed
+	for id, newImpact := range newImpactsMap {
+		if existingImpact, exists := existingImpactsMap[id]; exists {
+			// Only update if something changed
+			if !EqualsImpact(newImpact, existingImpact) {
+				updateStmt := Impact.UPDATE(Impact.Description, Impact.Value, Impact.Category).
+					MODEL(newImpact.Impact).
+					WHERE(Impact.ID.EQ(UUID(id)))
+
+				_, err = updateStmt.Exec(tx)
+				if err != nil {
+					return err
+				}
+			}
+
+			// Remove from existingImpactsMap to track what's been processed
+			delete(existingImpactsMap, id)
+		}
+	}
+
+	// 2. Delete impacts that no longer exist
+	for id := range existingImpactsMap {
+		deleteStmt := Impact.DELETE().WHERE(Impact.ID.EQ(UUID(id)))
+		_, err = deleteStmt.Exec(tx)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 3. Insert new impacts
+	for _, impact := range command.Impacts {
+		if impact.Impact.ID == uuid.Nil {
+			impact.Impact.RecordID = &command.ID
+
+			insertStmt := Impact.INSERT(Impact.Description, Impact.Value, Impact.Category, Impact.RecordID).
+				MODEL(impact.Impact)
+
+			_, err = insertStmt.Exec(tx)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r RecordRepository) Delete(c context.Context, id uuid.UUID) error {
+	tx, err := r.db.BeginTx(c, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Delete the record
+	recordStmt := Record.DELETE().WHERE(Record.ID.EQ(UUID(id)))
+	_, err = recordStmt.Exec(tx)
+	if err != nil {
+		return err
+	}
+	tx.Commit()
 
 	return nil
 }
 
-func (r RecordRepository) GetPaged(c context.Context, limit int, offset int) ([]Record, error) {
-	sb := recordStruct.SelectFrom("record r")
-	sb.Select("*")
-	sb.Join("impact i", "r.id = i.record_id")
-	sb.Limit(limit)
-	sb.Offset(offset)
+func (r RecordRepository) GetPaged(c context.Context, limit int, offset int) ([]RecordAggregate, error) {
+	stmt := SELECT(
+		Record.AllColumns,
+		Impact.AllColumns,
+	).FROM(
+		Record.LEFT_JOIN(Impact, Impact.RecordID.EQ(Record.ID)),
+	).LIMIT(int64(limit)).
+		OFFSET(int64(offset))
 
-	q, args := sb.Build()
-
-	fmt.Println(q, args)
-
-	rows, err := r.db.Query(q, args...)
+	var dest []RecordAggregate
+	err := stmt.Query(r.db, &dest)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	recordsMap := map[uuid.UUID]Record{}
-	for rows.Next() {
-		var record Record
-		if err := rows.Scan(recordStruct.Addr(&record)...); err != nil {
-			return nil, err
-		}
-
-		// Check if the record already exists
-		if exists, ok := recordsMap[record.ID]; ok {
-			exists.Impacts = append(exists.Impacts, record.Impacts...)
-		} else {
-			recordsMap[record.ID] = record
-		}
-	}
-
-	records := make([]Record, 0, len(recordsMap))
-	for _, record := range recordsMap {
-		records = append(records, record)
-	}
-
-	return records, nil
+	return dest, nil
 }
