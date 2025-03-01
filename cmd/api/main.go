@@ -30,7 +30,9 @@ func main() {
 		hooks.OnStart(func() {
 			// Create a new router & API
 			router := http.NewServeMux()
-			api := humago.New(router, huma.DefaultConfig("history-link", "1.0.0"))
+			config := huma.DefaultConfig("history-link", "1.0.0")
+			config.DocsPath = ""
+			api := humago.New(router, config)
 
 			conn, err := sql.Open("postgres", connStr)
 			if err != nil {
@@ -43,6 +45,26 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
+
+			router.HandleFunc("GET /docs", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/html")
+				w.Write([]byte(`<!doctype html>
+<html>
+  <head>
+    <title>API Reference</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script
+      id="api-reference"
+      data-url="/openapi.json"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>`))
+			})
 
 			rs := record.NewRecordResources(conn)
 			rs.MountRoutes(api)
