@@ -36,44 +36,43 @@ type recordResponseBody struct {
 }
 
 type createRecordCommandBody struct {
-	Title        string                    `json:"title" required:"true" maxLength:"255"`
-	Description  string                    `json:"description" validate:"required,max=255"`
-	Location     string                    `json:"location" validate:"max=255"`
-	Significance string                    `json:"significance" validate:"max=255"`
-	Url          string                    `json:"url" validate:"required,max=255"`
-	StartDate    string                    `json:"startDate" validate:"required,datetime=200601021504"`
-	EndDate      string                    `json:"endDate" validate:"required,datetime=200601021504"`
-	RecordStatus RecordStatus              `json:"recordStatus" validate:"required,oneof=0 1 2 3"`
-	Type         Type                      `json:"type" validate:"required,oneof=0 1 2 3"`
-	Impacts      []createImpactCommandBody `json:"impacts" required:"true"`
+	Title        string                    `json:"title" minLength:"1" maxLength:"255"`
+	Description  string                    `json:"description" minLength:"1" maxLength:"255"`
+	Location     string                    `json:"location" minLength:"1" maxLength:"255"`
+	Significance string                    `json:"significance" minLength:"1" maxLength:"255"`
+	Url          string                    `json:"url" minLength:"1" maxLength:"255"`
+	StartDate    string                    `json:"startDate" format:"date"`
+	EndDate      string                    `json:"endDate" format:"date"`
+	RecordStatus RecordStatus              `json:"recordStatus" enum:"0,1,2,3"`
+	Type         Type                      `json:"type" enum:"0,1,2,3"`
+	Impacts      []createImpactCommandBody `json:"impacts"`
 }
 
 type updateRecordCommandBody struct {
-	ID uuid.UUID `json:"id" path:"id"`
-
-	Title        string                    `json:"title" validate:"max=255"`
-	Description  string                    `json:"description" validate:"max=255"`
-	Location     string                    `json:"location" validate:"max=255"`
-	Significance string                    `json:"significance" validate:"max=255"`
-	Url          string                    `json:"url" validate:"required,max=255"`
-	StartDate    string                    `json:"startDate" validate:"required,datetime=200601021504"`
-	EndDate      string                    `json:"endDate" validate:"required,datetime=200601021504"`
-	RecordStatus RecordStatus              `json:"recordStatus" validate:"required,oneof=0 1 2 3"`
-	Type         Type                      `json:"type" validate:"required,oneof=0 1 2 3"`
-	Impacts      []updateImpactCommandBody `json:"impacts" required:"true"`
+	ID           uuid.UUID                 `json:"id" path:"id"`
+	Title        string                    `json:"title" minLength:"1" maxLength:"255"`
+	Description  string                    `json:"description" minLength:"1" maxLength:"255"`
+	Location     string                    `json:"location" minLength:"1" maxLength:"255"`
+	Significance string                    `json:"significance" minLength:"1" maxLength:"255"`
+	Url          string                    `json:"url" minLength:"1" maxLength:"255"`
+	StartDate    string                    `json:"startDate" format:"date"`
+	EndDate      string                    `json:"endDate" format:"date"`
+	RecordStatus RecordStatus              `json:"recordStatus" enum:"0,1,2,3"`
+	Type         Type                      `json:"type" enum:"0,1,2,3"`
+	Impacts      []updateImpactCommandBody `json:"impacts"`
 }
 
 type createImpactCommandBody struct {
-	Description string `json:"description"`
-	Value       int    `json:"value"`
-	Category    int    `json:"category"`
+	Description string `json:"description" minLength:"1" maxLength:"255"`
+	Value       int    `json:"value" minimum:"1" maximum:"10"`
+	Category    int    `json:"category" minimum:"1"`
 }
 
 type updateImpactCommandBody struct {
 	ID          uuid.UUID `json:"id,omitempty"`
-	Description string    `json:"description"`
-	Value       int       `json:"value"`
-	Category    int       `json:"category"`
+	Description string    `json:"description" minLength:"1" maxLength:"255"`
+	Value       int       `json:"value" minimum:"1" maximum:"10"`
+	Category    int       `json:"category" minimum:"1"`
 	RecordId    uuid.UUID `json:"recordId,omitempty"`
 }
 
@@ -106,18 +105,3 @@ func toImpactResponse(record RecordAggregate) []impactResponse {
 	}
 	return response
 }
-
-//
-//func toPagedResponse(records []Record, page int, pageSize int) pagedResponse[recordResponseBody] {
-//	var recordsResponse []recordResponseBody
-//	for _, record := range records {
-//		recordsResponse = append(recordsResponse, toResponse(record))
-//	}
-//	return pagedResponse[recordResponseBody]{
-//		Page:    page,
-//		Size:    pageSize,
-//		Total:   len(records),
-//		Records: recordsResponse,
-//	}
-//}
-//

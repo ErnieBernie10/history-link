@@ -76,17 +76,22 @@ func (rs RecordResources) getPaged(c context.Context, input *struct {
 	Page     int `query:"page" minimum:"1" default:"1"`
 	PageSize int `query:"pageSize" minimum:"1" default:"10"`
 }) (*struct {
-	Body []recordResponseBody
+	Body pagedResponse[recordResponseBody]
 }, error) {
-	records, err := rs.RecordService.GetPaged(c, input.Page, input.PageSize)
+	records, total, err := rs.RecordService.GetPaged(c, input.Page, input.PageSize)
 	if err != nil {
 		return nil, err
 	}
 
 	return &struct {
-		Body []recordResponseBody
+		Body pagedResponse[recordResponseBody]
 	}{
-		Body: records,
+		Body: pagedResponse[recordResponseBody]{
+			Page:    input.Page,
+			Size:    input.PageSize,
+			Total:   total,
+			Records: records,
+		},
 	}, nil
 }
 

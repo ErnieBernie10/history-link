@@ -22,7 +22,7 @@ type IRecordRepository interface {
 	Create(c context.Context, command RecordAggregate) (RecordAggregate, error)
 	Update(c context.Context, command RecordAggregate) error
 	Delete(c context.Context, id uuid.UUID) error
-	GetPaged(c context.Context, limit int, offset int) ([]RecordAggregate, error)
+	GetPaged(c context.Context, limit int, offset int) ([]RecordAggregate, int, error)
 }
 type RecordRepository struct {
 	db *sql.DB
@@ -224,8 +224,20 @@ func (r RecordRepository) Delete(c context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func (r RecordRepository) GetPaged(c context.Context, limit int, offset int) ([]RecordAggregate, error) {
-	stmt := SELECT(
+type Count struct {
+	C int
+}
+
+func (r RecordRepository) GetPaged(c context.Context, limit int, offset int) ([]RecordAggregate, int, error) {
+	var total Count
+	stmt := SELECT(COUNT(Record.ID).AS("count.c")).FROM(Record)
+
+	err := stmt.Query(r.db, &total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	stmt = SELECT(
 		Record.AllColumns,
 		Impact.AllColumns,
 	).FROM(
@@ -234,9 +246,9 @@ func (r RecordRepository) GetPaged(c context.Context, limit int, offset int) ([]
 		OFFSET(int64(offset))
 
 	var dest []RecordAggregate
-	err := stmt.Query(r.db, &dest)
+	err = stmt.Query(r.db, &dest)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return dest, nil
+	return dest, total.C, nil
 }

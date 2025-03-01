@@ -19,7 +19,7 @@ type IRecordService interface {
 	Create(c context.Context, command createRecordCommandBody) (recordResponseBody, error)
 	Update(c context.Context, id uuid.UUID, command updateRecordCommandBody) error
 	GetById(id uuid.UUID) (recordResponseBody, error)
-	GetPaged(c context.Context, page, pageSize int) ([]recordResponseBody, error)
+	GetPaged(c context.Context, page, pageSize int) ([]recordResponseBody, int, error)
 	Delete(c context.Context, id uuid.UUID) error
 }
 
@@ -138,16 +138,16 @@ func (s RecordService) Update(c context.Context, id uuid.UUID, command updateRec
 	})
 }
 
-func (s RecordService) GetPaged(c context.Context, page, pageSize int) ([]recordResponseBody, error) {
-	records, err := s.recordRepository.GetPaged(c, pageSize, (page-1)*pageSize)
+func (s RecordService) GetPaged(c context.Context, page, pageSize int) ([]recordResponseBody, int, error) {
+	records, total, err := s.recordRepository.GetPaged(c, pageSize, (page-1)*pageSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	var response []recordResponseBody
 	for _, record := range records {
 		response = append(response, toResponse(record))
 	}
-	return response, nil
+	return response, total, nil
 }
 
 func (s RecordService) Delete(c context.Context, id uuid.UUID) error {
