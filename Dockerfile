@@ -24,6 +24,7 @@ RUN chmod +x /usr/local/bin/dbmate
 
 # Copy built binary and migration script
 COPY --from=build /app/main /app/main
+COPY --from=build /app/db/migrations /app/db/migrations
 COPY migrate-and-run.sh /app/migrate-and-run.sh
 
 # Ensure the script is executable
