@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -82,7 +83,9 @@ func main() {
 </html>`))
 			})
 
-			rs := record.NewRecordResources(conn)
+			// Configure the logger to include source information
+			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{AddSource: true}))
+			rs := record.NewRecordResources(conn, logger)
 			rs.MountRoutes(api)
 
 			corsRouter := corsMiddleware(router)

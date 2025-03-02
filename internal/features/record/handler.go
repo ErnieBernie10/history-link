@@ -5,20 +5,23 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 )
 
-func NewRecordResources(conn *sql.DB) RecordResources {
+func NewRecordResources(conn *sql.DB, logger *slog.Logger) RecordResources {
 	return RecordResources{
-		RecordService: NewRecordService(NewRepository(conn)),
+		logger:        logger,
+		RecordService: NewRecordService(NewRepository(conn, logger), logger),
 	}
 }
 
 type RecordResources struct {
 	RecordService IRecordService
+	logger        *slog.Logger
 }
 
 func (rs RecordResources) create(c context.Context, input *struct {
@@ -28,6 +31,7 @@ func (rs RecordResources) create(c context.Context, input *struct {
 }, error) {
 	response, err := rs.RecordService.Create(c, input.Body)
 	if err != nil {
+		rs.logger.Error(err.Error())
 		return nil, err
 	}
 

@@ -3,17 +3,21 @@ package record
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"historylink/.gen/historylink/public/model"
 	. "historylink/.gen/historylink/public/table"
+	"log/slog"
+	"reflect"
 
 	. "github.com/go-jet/jet/v2/postgres"
 
 	"github.com/google/uuid"
 )
 
-func NewRepository(db *sql.DB) IRecordRepository {
+func NewRepository(db *sql.DB, logger *slog.Logger) IRecordRepository {
 	return RecordRepository{
-		db: db,
+		db:     db,
+		logger: logger,
 	}
 }
 
@@ -25,7 +29,8 @@ type IRecordRepository interface {
 	GetPaged(c context.Context, limit int, offset int) ([]RecordAggregate, int, error)
 }
 type RecordRepository struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *slog.Logger
 }
 
 type RecordAggregate struct {
@@ -33,13 +38,6 @@ type RecordAggregate struct {
 	Impacts []struct {
 		model.Impact
 	}
-}
-
-func EqualsImpact(a, b struct{ model.Impact }) bool {
-	return a.Impact.ID == b.Impact.ID &&
-		a.Impact.Description == b.Impact.Description &&
-		a.Impact.Value == b.Impact.Value &&
-		a.Impact.Category == b.Impact.Category
 }
 
 func (r RecordRepository) GetById(id uuid.UUID) (RecordAggregate, error) {
@@ -55,7 +53,7 @@ func (r RecordRepository) GetById(id uuid.UUID) (RecordAggregate, error) {
 	var dest RecordAggregate
 	err := stmt.Query(r.db, &dest)
 	if err != nil {
-		return dest, err
+		return dest, fmt.Errorf("error getting record: %w", err)
 	}
 	return dest, nil
 }
@@ -63,70 +61,72 @@ func (r RecordRepository) GetById(id uuid.UUID) (RecordAggregate, error) {
 func (r RecordRepository) Create(c context.Context, command RecordAggregate) (RecordAggregate, error) {
 	tx, err := r.db.BeginTx(c, nil)
 	if err != nil {
-		return RecordAggregate{}, err
+		return RecordAggregate{}, fmt.Errorf("error starting transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Create a result struct to hold the returned data
 	var result RecordAggregate
 
-	// Insert the record and capture the returned data
-	recordStmt := Record.INSERT(Record.Title, Record.Description, Record.Location, Record.Significance, Record.URL, Record.StartDate, Record.EndDate, Record.Type, Record.Status).
+	recordStmt := Record.INSERT(Record.MutableColumns).
 		MODEL(command.Record).
 		RETURNING(Record.AllColumns)
 
-	err = recordStmt.Query(tx, &result.Record)
-	if err != nil {
-		return RecordAggregate{}, err
+	if err = recordStmt.Query(tx, &result.Record); err != nil {
+		return RecordAggregate{}, fmt.Errorf("error creating record: %w", err)
 	}
 
-	// Prepare impacts with the correct record ID if needed
 	for i := range command.Impacts {
 		if command.Impacts[i].RecordID == nil {
 			command.Impacts[i].RecordID = &result.ID
 		}
 	}
 
-	// Insert impacts if any
 	if len(command.Impacts) > 0 {
-		impactStmt := Impact.INSERT(Impact.Description, Impact.Value, Impact.Category, Impact.RecordID).
+		impactStmt := Impact.INSERT(Impact.MutableColumns).
 			MODELS(command.Impacts).
 			RETURNING(Impact.AllColumns)
 
 		var impacts []struct {
 			model.Impact
 		}
-		err = impactStmt.Query(tx, &impacts)
-		if err != nil {
-			return RecordAggregate{}, err
+		if err = impactStmt.Query(tx, &impacts); err != nil {
+			return RecordAggregate{}, fmt.Errorf("error creating impacts: %w", err)
 		}
+
 		result.Impacts = impacts
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		return RecordAggregate{}, err
+	if err = tx.Commit(); err != nil {
+		return RecordAggregate{}, fmt.Errorf("error committing transaction: %w", err)
 	}
 
 	return result, nil
 }
 
+func EqualsRecord(a, b model.Record) bool {
+	return a.Title == b.Title &&
+		a.Description == b.Description &&
+		reflect.DeepEqual(a.Location, b.Location) &&
+		reflect.DeepEqual(a.Significance, b.Significance) &&
+		a.URL == b.URL &&
+		a.StartDate.Equal(*b.StartDate) &&
+		a.EndDate.Equal(*b.EndDate) &&
+		a.Type == b.Type &&
+		a.Status == b.Status
+}
+
+func EqualsImpact(a, b model.Impact) bool {
+	return a.Description == b.Description &&
+		a.Value == b.Value &&
+		a.Category == b.Category
+}
+
 func (r RecordRepository) Update(c context.Context, command RecordAggregate) error {
 	tx, err := r.db.BeginTx(c, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("error starting transaction: %w", err)
 	}
 	defer tx.Rollback()
-
-	// Update the record
-	recordStmt := Record.UPDATE(Record.Title, Record.Description, Record.Location, Record.Significance, Record.URL, Record.StartDate, Record.EndDate, Record.Type, Record.Status).
-		MODEL(command.Record).
-		WHERE(Record.ID.EQ(UUID(command.ID)))
-
-	_, err = recordStmt.Exec(tx)
-	if err != nil {
-		return err
-	}
 
 	// Handle impacts - first get existing impacts
 	existingImpactsStmt := SELECT(Impact.AllColumns).
@@ -138,7 +138,7 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 	}
 	err = existingImpactsStmt.Query(tx, &existingImpacts)
 	if err != nil && err != sql.ErrNoRows {
-		return err
+		return fmt.Errorf("error getting existing impacts: %w", err)
 	}
 
 	// Create maps for existing and new impacts
@@ -163,14 +163,14 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 	for id, newImpact := range newImpactsMap {
 		if existingImpact, exists := existingImpactsMap[id]; exists {
 			// Only update if something changed
-			if !EqualsImpact(newImpact, existingImpact) {
+			if !EqualsImpact(newImpact.Impact, existingImpact.Impact) {
 				updateStmt := Impact.UPDATE(Impact.Description, Impact.Value, Impact.Category).
 					MODEL(newImpact.Impact).
 					WHERE(Impact.ID.EQ(UUID(id)))
 
 				_, err = updateStmt.Exec(tx)
 				if err != nil {
-					return err
+					return fmt.Errorf("error updating impact: %w", err)
 				}
 			}
 
@@ -184,7 +184,7 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 		deleteStmt := Impact.DELETE().WHERE(Impact.ID.EQ(UUID(id)))
 		_, err = deleteStmt.Exec(tx)
 		if err != nil {
-			return err
+			return fmt.Errorf("error deleting impact: %w", err)
 		}
 	}
 
@@ -198,18 +198,55 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 
 			_, err = insertStmt.Exec(tx)
 			if err != nil {
-				return err
+				return fmt.Errorf("error inserting impact: %w", err)
 			}
 		}
 	}
 
-	return tx.Commit()
+	stmt := SELECT(Record.AllColumns).
+		FROM(Record).
+		WHERE(Record.ID.EQ(UUID(command.ID)))
+
+	var existingRecord struct {
+		model.Record
+	}
+	err = stmt.Query(tx, &existingRecord)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		return fmt.Errorf("error getting existing record: %w", err)
+	}
+
+	if EqualsRecord(command.Record, existingRecord.Record) {
+		err = tx.Commit()
+		if err != nil {
+			return fmt.Errorf("error committing transaction: %w", err)
+		}
+		return nil
+	}
+
+	// Update the record
+	recordStmt := Record.UPDATE(Record.Title, Record.Description, Record.Location, Record.Significance, Record.URL, Record.StartDate, Record.EndDate, Record.Type, Record.Status).
+		MODEL(command.Record).
+		WHERE(Record.ID.EQ(UUID(command.ID)))
+
+	_, err = recordStmt.Exec(tx)
+	if err != nil {
+		return fmt.Errorf("error updating record: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (r RecordRepository) Delete(c context.Context, id uuid.UUID) error {
 	tx, err := r.db.BeginTx(c, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("error starting transaction: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -217,9 +254,11 @@ func (r RecordRepository) Delete(c context.Context, id uuid.UUID) error {
 	recordStmt := Record.DELETE().WHERE(Record.ID.EQ(UUID(id)))
 	_, err = recordStmt.Exec(tx)
 	if err != nil {
-		return err
+		return fmt.Errorf("error deleting record: %w", err)
 	}
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
+	}
 
 	return nil
 }
@@ -234,7 +273,7 @@ func (r RecordRepository) GetPaged(c context.Context, limit int, offset int) ([]
 
 	err := stmt.Query(r.db, &total)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("error getting total count: %w", err)
 	}
 
 	stmt = SELECT(
@@ -248,7 +287,7 @@ func (r RecordRepository) GetPaged(c context.Context, limit int, offset int) ([]
 	var dest []RecordAggregate
 	err = stmt.Query(r.db, &dest)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("error getting records: %w", err)
 	}
 	return dest, total.C, nil
 }

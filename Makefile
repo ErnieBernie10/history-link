@@ -20,7 +20,7 @@ templ-install:
 build: templ-install
 	@echo "Building..."
 	@templ generate
-	
+
 	@go build -o main cmd/api/main.go
 
 # Run the application
@@ -71,4 +71,7 @@ watch:
             fi; \
         fi
 
-.PHONY: all build run test clean watch templ-install
+jet:
+	@jet -dsn "postgres://postgres:postgres@127.0.0.1:5432/historylink?sslmode=disable" -path ./.gen
+
+.PHONY: all build run test clean watch templ-install jet

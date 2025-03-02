@@ -9,6 +9,90 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+--
+-- Name: update_impact_history(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_impact_history() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  prev_created_at TIMESTAMP;
+  prev_updated_at TIMESTAMP;
+BEGIN
+    -- Initialize the variables to NULL
+    prev_created_at := NULL;
+    prev_updated_at := NULL;
+
+    -- Get created_at and updated_at values from the history table if any exist
+    IF (TG_OP = 'UPDATE' OR TG_OP = 'DELETE') THEN
+        SELECT created_at, updated_at
+        INTO prev_created_at, prev_updated_at
+        FROM impact_history
+        WHERE impact_id = OLD.id
+        ORDER BY updated_at DESC
+        LIMIT 1;
+    END IF;
+
+    IF (TG_OP = 'DELETE') THEN
+        INSERT INTO impact_history (impact_id, record_id, description, value, category, created_at, updated_at)
+        VALUES (OLD.id, OLD.record_id, OLD.description, OLD.value, OLD.category, prev_created_at, NOW());
+        RETURN OLD;
+    ELSIF (TG_OP = 'UPDATE') THEN
+        INSERT INTO impact_history (impact_id, record_id, description, value, category, created_at, updated_at)
+        VALUES (NEW.id, NEW.record_id, NEW.description, NEW.value, NEW.category, prev_created_at, NOW());
+        RETURN NEW;
+    ELSIF (TG_OP = 'INSERT') THEN
+        INSERT INTO impact_history (impact_id, record_id, description, value, category, created_at, updated_at)
+        VALUES (NEW.id, NEW.record_id, NEW.description, NEW.value, NEW.category, NOW(), NOW());
+        RETURN NEW;
+    END IF;
+    END;
+$$;
+
+
+--
+-- Name: update_record_history(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_record_history() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  prev_created_at TIMESTAMP;
+  prev_updated_at TIMESTAMP;
+BEGIN
+  -- Initialize the variables to NULL
+  prev_created_at := NULL;
+  prev_updated_at := NULL;
+
+  -- Get created_at and updated_at values from the history table if any exist
+  IF (TG_OP = 'UPDATE' OR TG_OP = 'DELETE') THEN
+    SELECT created_at, updated_at
+    INTO prev_created_at, prev_updated_at
+    FROM record_history
+    WHERE record_id = OLD.id
+    ORDER BY updated_at DESC
+    LIMIT 1;
+  END IF;
+
+  IF (TG_OP = 'DELETE') THEN
+    INSERT INTO record_history (record_id, title, description, location, significance, url, start_date, end_date, type, status, created_at, updated_at)
+    VALUES (OLD.id, OLD.title, OLD.description, OLD.location, OLD.significance, OLD.url, OLD.start_date, OLD.end_date, OLD.type, OLD.status, prev_created_at, NOW());
+    RETURN OLD;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    INSERT INTO record_history (record_id, title, description, location, significance, url, start_date, end_date, type, status, created_at, updated_at)
+    VALUES (NEW.id, NEW.title, NEW.description, NEW.location, NEW.significance, NEW.url, NEW.start_date, NEW.end_date, NEW.type, NEW.status, prev_created_at, NOW());
+    RETURN NEW;
+  ELSIF (TG_OP = 'INSERT') THEN
+    INSERT INTO record_history (record_id, title, description, location, significance, url, start_date, end_date, type, status, created_at, updated_at)
+    VALUES (NEW.id, NEW.title, NEW.description, NEW.location, NEW.significance, NEW.url, NEW.start_date, NEW.end_date, NEW.type, NEW.status, NOW(), NOW());
+    RETURN NEW;
+  END IF;
+END;
+$$;
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -23,6 +107,22 @@ CREATE TABLE public.impact (
     description character varying(255) NOT NULL,
     value smallint NOT NULL,
     category smallint NOT NULL
+);
+
+
+--
+-- Name: impact_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.impact_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    impact_id uuid,
+    record_id uuid,
+    description character varying(255) NOT NULL,
+    value smallint NOT NULL,
+    category smallint NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
 );
 
 
@@ -57,6 +157,27 @@ CREATE TABLE public.record (
 
 
 --
+-- Name: record_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.record_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    record_id uuid,
+    title character varying(255) NOT NULL,
+    description character varying(255) NOT NULL,
+    location character varying(255) DEFAULT ''::character varying,
+    significance character varying(255) DEFAULT ''::character varying,
+    url character varying(255) NOT NULL,
+    start_date timestamp without time zone,
+    end_date timestamp without time zone,
+    type smallint NOT NULL,
+    status smallint NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL,
+    updated_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -80,6 +201,14 @@ CREATE TABLE public.source (
 
 
 --
+-- Name: impact_history impact_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.impact_history
+    ADD CONSTRAINT impact_history_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: impact impact_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -93,6 +222,14 @@ ALTER TABLE ONLY public.impact
 
 ALTER TABLE ONLY public.link
     ADD CONSTRAINT link_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: record_history record_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.record_history
+    ADD CONSTRAINT record_history_pkey PRIMARY KEY (id);
 
 
 --
@@ -120,6 +257,36 @@ ALTER TABLE ONLY public.source
 
 
 --
+-- Name: impact tr_impact_history; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_impact_history AFTER INSERT OR DELETE OR UPDATE ON public.impact FOR EACH ROW EXECUTE FUNCTION public.update_impact_history();
+
+
+--
+-- Name: record tr_record_history; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER tr_record_history AFTER INSERT OR DELETE OR UPDATE ON public.record FOR EACH ROW EXECUTE FUNCTION public.update_record_history();
+
+
+--
+-- Name: impact_history impact_history_impact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.impact_history
+    ADD CONSTRAINT impact_history_impact_id_fkey FOREIGN KEY (impact_id) REFERENCES public.impact(id) ON DELETE CASCADE;
+
+
+--
+-- Name: impact_history impact_history_record_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.impact_history
+    ADD CONSTRAINT impact_history_record_id_fkey FOREIGN KEY (record_id) REFERENCES public.record(id) ON DELETE CASCADE;
+
+
+--
 -- Name: impact impact_record_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -144,6 +311,14 @@ ALTER TABLE ONLY public.link
 
 
 --
+-- Name: record_history record_history_record_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.record_history
+    ADD CONSTRAINT record_history_record_id_fkey FOREIGN KEY (record_id) REFERENCES public.record(id) ON DELETE CASCADE;
+
+
+--
 -- Name: source source_record_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -161,4 +336,6 @@ ALTER TABLE ONLY public.source
 --
 
 INSERT INTO public.schema_migrations (version) VALUES
-    ('20250223144317');
+    ('20250223144317'),
+    ('20250302122704'),
+    ('20250302131546');

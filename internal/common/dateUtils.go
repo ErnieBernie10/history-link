@@ -1,6 +1,8 @@
 package common
 
-import "time"
+import (
+	"time"
+)
 
 func ToDateString(t *time.Time) string {
 	// format RFC3339

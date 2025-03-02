@@ -5,13 +5,15 @@ import (
 	"errors"
 	"historylink/.gen/historylink/public/model"
 	"historylink/internal/common"
+	"log/slog"
 
 	"github.com/google/uuid"
 )
 
-func NewRecordService(recordRepository IRecordRepository) IRecordService {
+func NewRecordService(recordRepository IRecordRepository, logger *slog.Logger) IRecordService {
 	return RecordService{
 		recordRepository: recordRepository,
+		logger:           logger,
 	}
 }
 
@@ -25,6 +27,7 @@ type IRecordService interface {
 
 type RecordService struct {
 	recordRepository IRecordRepository
+	logger           *slog.Logger
 }
 
 type RecordStatus string

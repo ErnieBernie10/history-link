@@ -11,8 +11,10 @@ package table
 // this method only once at the beginning of the program.
 func UseSchema(schema string) {
 	Impact = Impact.FromSchema(schema)
+	ImpactHistory = ImpactHistory.FromSchema(schema)
 	Link = Link.FromSchema(schema)
 	Record = Record.FromSchema(schema)
+	RecordHistory = RecordHistory.FromSchema(schema)
 	SchemaMigrations = SchemaMigrations.FromSchema(schema)
 	Source = Source.FromSchema(schema)
 }
