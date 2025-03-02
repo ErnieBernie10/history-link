@@ -83,6 +83,10 @@ func (rs RecordResources) getPaged(c context.Context, input *struct {
 		return nil, err
 	}
 
+	if records == nil {
+		records = []recordResponseBody{}
+	}
+
 	return &struct {
 		Body pagedResponse[recordResponseBody]
 	}{

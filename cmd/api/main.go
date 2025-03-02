@@ -20,6 +20,22 @@ type Options struct {
 	Port int `help:"Port to listen on" short:"p" default:"8888"`
 }
 
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Handle preflight requests
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	//port := os.Getenv("PORT")
 	connStr := os.Getenv("DATABASE_URL")
@@ -68,7 +84,10 @@ func main() {
 
 			rs := record.NewRecordResources(conn)
 			rs.MountRoutes(api)
-			http.ListenAndServe(fmt.Sprintf(":%d", options.Port), router)
+
+			corsRouter := corsMiddleware(router)
+
+			http.ListenAndServe(fmt.Sprintf(":%d", options.Port), corsRouter)
 		})
 	})
 
