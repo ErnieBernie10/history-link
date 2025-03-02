@@ -15,7 +15,7 @@ type pagedResponse[t any] struct {
 
 type impactResponse struct {
 	Value       int       `json:"value"`
-	Category    int       `json:"category"`
+	Category    Category  `json:"category"`
 	Description string    `json:"description"`
 	ID          uuid.UUID `json:"id"`
 	RecordID    uuid.UUID `json:"recordId"`
@@ -43,8 +43,8 @@ type createRecordCommandBody struct {
 	Url          string                    `json:"url" minLength:"1" maxLength:"255"`
 	StartDate    string                    `json:"startDate" format:"date"`
 	EndDate      string                    `json:"endDate" format:"date"`
-	RecordStatus RecordStatus              `json:"recordStatus" enum:"0,1,2,3"`
-	Type         Type                      `json:"type" enum:"0,1,2,3"`
+	RecordStatus RecordStatus              `json:"recordStatus" enum:"removed,draft,pending,reviewed"`
+	Type         Type                      `json:"type" enum:"arc,event,person,object"`
 	Impacts      []createImpactCommandBody `json:"impacts"`
 }
 
@@ -57,22 +57,22 @@ type updateRecordCommandBody struct {
 	Url          string                    `json:"url" minLength:"1" maxLength:"255"`
 	StartDate    string                    `json:"startDate" format:"date"`
 	EndDate      string                    `json:"endDate" format:"date"`
-	RecordStatus RecordStatus              `json:"recordStatus" enum:"0,1,2,3"`
-	Type         Type                      `json:"type" enum:"0,1,2,3"`
+	RecordStatus RecordStatus              `json:"recordStatus" enum:"removed,draft,pending,reviewed"`
+	Type         Type                      `json:"type" enum:"arc,event,person,object"`
 	Impacts      []updateImpactCommandBody `json:"impacts"`
 }
 
 type createImpactCommandBody struct {
-	Description string `json:"description" minLength:"1" maxLength:"255"`
-	Value       int    `json:"value" minimum:"1" maximum:"10"`
-	Category    int    `json:"category" minimum:"1"`
+	Description string   `json:"description" minLength:"1" maxLength:"255"`
+	Value       int      `json:"value" minimum:"1" maximum:"10"`
+	Category    Category `json:"category" enum:"economic,political,social,cultural,tech"`
 }
 
 type updateImpactCommandBody struct {
 	ID          uuid.UUID `json:"id,omitempty"`
 	Description string    `json:"description" minLength:"1" maxLength:"255"`
 	Value       int       `json:"value" minimum:"1" maximum:"10"`
-	Category    int       `json:"category" minimum:"1"`
+	Category    Category  `json:"category" enum:"economic,political,social,cultural,tech"`
 	RecordId    uuid.UUID `json:"recordId,omitempty"`
 }
 
@@ -86,8 +86,8 @@ func toResponse(record RecordAggregate) recordResponseBody {
 		Url:          record.URL,
 		StartDate:    common.ToDateString(record.StartDate),
 		EndDate:      common.ToDateString(record.EndDate),
-		RecordStatus: RecordStatus(record.Status),
-		Type:         Type(record.Type),
+		RecordStatus: RecordStatusFromInt16(record.Status),
+		Type:         TypeFromInt16(record.Type),
 		Impacts:      toImpactResponse(record),
 	}
 }
@@ -97,7 +97,7 @@ func toImpactResponse(record RecordAggregate) []impactResponse {
 	for _, impact := range record.Impacts {
 		response = append(response, impactResponse{
 			Value:       int(impact.Value),
-			Category:    int(impact.Category),
+			Category:    CategoryFromInt16(impact.Category),
 			Description: impact.Description,
 			ID:          impact.ID,
 			RecordID:    *impact.RecordID,

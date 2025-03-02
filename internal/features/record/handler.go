@@ -111,28 +111,28 @@ func (rs RecordResources) MountRoutes(s huma.API) {
 	huma.Register(s, huma.Operation{
 		OperationID:   "get-record-by-id",
 		Method:        http.MethodGet,
-		Path:          "/record/{id}",
+		Path:          "/records/{id}",
 		DefaultStatus: http.StatusOK,
 	}, rs.getById)
 	huma.Register(s, huma.Operation{
 		OperationID: "create-record",
 		Method:      http.MethodPost,
-		Path:        "/record",
+		Path:        "/records/",
 	}, rs.create)
 	huma.Register(s, huma.Operation{
 		OperationID: "update-record",
 		Method:      http.MethodPut,
-		Path:        "/record/{id}",
+		Path:        "/records/{id}",
 	}, rs.update)
 	huma.Register(s, huma.Operation{
 		OperationID:   "get-records",
 		Method:        http.MethodGet,
-		Path:          "/record/",
+		Path:          "/records/",
 		DefaultStatus: http.StatusOK,
 	}, rs.getPaged)
 	huma.Register(s, huma.Operation{
 		OperationID: "delete-record",
 		Method:      http.MethodDelete,
-		Path:        "/record/{id}",
+		Path:        "/records/{id}",
 	}, rs.delete)
 }

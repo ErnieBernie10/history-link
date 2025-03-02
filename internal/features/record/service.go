@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"historylink/.gen/historylink/public/model"
-	"time"
+	"historylink/internal/common"
 
 	"github.com/google/uuid"
 )
@@ -27,33 +27,123 @@ type RecordService struct {
 	recordRepository IRecordRepository
 }
 
-type RecordStatus int16
+type RecordStatus string
 
 const (
-	Removed RecordStatus = iota
-	Draft
-	PendingReview
-	Reviewed
+	Removed       RecordStatus = "removed"
+	Draft         RecordStatus = "draft"
+	PendingReview RecordStatus = "pending"
+	Reviewed      RecordStatus = "reviewed"
 )
 
-type Type int16
+type Type string
 
 const (
-	Arc Type = iota
-	Event
-	Person
-	Object
+	Arc    Type = "arc"
+	Event  Type = "event"
+	Person Type = "person"
+	Object Type = "object"
 )
+
+type Category string
+
+const (
+	Political Category = "political"
+	Social    Category = "social"
+	Economic  Category = "economic"
+	Cultural  Category = "cultural"
+	Tech      Category = "tech"
+)
+
+func CategoryFromInt16(v int16) Category {
+	switch v {
+	case 0:
+		return Political
+	case 1:
+		return Social
+	case 2:
+		return Economic
+	case 3:
+		return Cultural
+	case 4:
+		return Tech
+	}
+	return ""
+}
+
+func (c Category) ToInt16() int16 {
+	switch c {
+	case Political:
+		return 0
+	case Social:
+		return 1
+	case Economic:
+		return 2
+	case Cultural:
+		return 3
+	case Tech:
+		return 4
+	}
+	return -1
+}
+
+func TypeFromInt16(v int16) Type {
+	switch v {
+	case 0:
+		return Arc
+	case 1:
+		return Event
+	case 2:
+		return Person
+	case 3:
+		return Object
+	}
+	return ""
+}
+
+func (t Type) ToInt16() int16 {
+	switch t {
+	case Arc:
+		return 0
+	case Event:
+		return 1
+	case Person:
+		return 2
+	case Object:
+		return 3
+	}
+	return -1
+}
+
+func RecordStatusFromInt16(v int16) RecordStatus {
+	switch v {
+	case 0:
+		return Removed
+	case 1:
+		return Draft
+	case 2:
+		return PendingReview
+	case 3:
+		return Reviewed
+	}
+	return ""
+}
+
+func (r RecordStatus) ToInt16() int16 {
+	switch r {
+	case Removed:
+		return 0
+	case Draft:
+		return 1
+	case PendingReview:
+		return 2
+	case Reviewed:
+		return 3
+	}
+	return -1
+}
 
 func (s RecordService) Create(context context.Context, command createRecordCommandBody) (recordResponseBody, error) {
-	startDate, err := time.Parse("200601021504", command.StartDate)
-	if err != nil {
-		return recordResponseBody{}, err
-	}
-	endDate, err := time.Parse("200601021504", command.EndDate)
-	if err != nil {
-		return recordResponseBody{}, err
-	}
 	response, err := s.recordRepository.Create(context, RecordAggregate{
 		Record: model.Record{
 			Title:        command.Title,
@@ -61,10 +151,10 @@ func (s RecordService) Create(context context.Context, command createRecordComma
 			Location:     &command.Location,
 			Significance: &command.Significance,
 			URL:          command.Url,
-			StartDate:    &startDate,
-			EndDate:      &endDate,
-			Type:         int16(command.Type),
-			Status:       int16(command.RecordStatus),
+			StartDate:    common.ToTime(command.StartDate),
+			EndDate:      common.ToTime(command.EndDate),
+			Type:         command.Type.ToInt16(),
+			Status:       command.RecordStatus.ToInt16(),
 		},
 		Impacts: mapCreateImpacts(command.Impacts),
 	})
@@ -81,7 +171,7 @@ func mapUpdateImpacts(impactCommands []updateImpactCommandBody) []struct{ model.
 			ID:          command.ID,
 			Description: command.Description,
 			Value:       int16(command.Value),
-			Category:    int16(command.Category),
+			Category:    command.Category.ToInt16(),
 			RecordID:    &command.RecordId,
 		}
 	}
@@ -95,7 +185,7 @@ func mapCreateImpacts(impactCommands []createImpactCommandBody) []struct{ model.
 			ID:          uuid.New(),
 			Description: command.Description,
 			Value:       int16(command.Value),
-			Category:    int16(command.Category),
+			Category:    command.Category.ToInt16(),
 		}
 	}
 	return impacts
@@ -113,14 +203,6 @@ func (s RecordService) Update(c context.Context, id uuid.UUID, command updateRec
 	if id != command.ID {
 		return errors.New("id mismatch")
 	}
-	startDate, err := time.Parse("200601021504", command.StartDate)
-	if err != nil {
-		return err
-	}
-	endDate, err := time.Parse("200601021504", command.EndDate)
-	if err != nil {
-		return err
-	}
 	return s.recordRepository.Update(c, RecordAggregate{
 		Record: model.Record{
 			ID:           command.ID,
@@ -129,10 +211,10 @@ func (s RecordService) Update(c context.Context, id uuid.UUID, command updateRec
 			Location:     &command.Location,
 			Significance: &command.Significance,
 			URL:          command.Url,
-			StartDate:    &startDate,
-			EndDate:      &endDate,
-			Type:         int16(command.Type),
-			Status:       int16(command.RecordStatus),
+			StartDate:    common.ToTime(command.StartDate),
+			EndDate:      common.ToTime(command.EndDate),
+			Type:         command.Type.ToInt16(),
+			Status:       command.RecordStatus.ToInt16(),
 		},
 		Impacts: mapUpdateImpacts(command.Impacts),
 	})
