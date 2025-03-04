@@ -115,7 +115,6 @@ func (rs RecordResources) delete(c context.Context, input *struct {
 }
 
 func (rs RecordResources) MountRoutes(s huma.API) {
-	//fuego.Get(s, "/record/", rs.getPaged, option.QueryInt("page", "page of records", param.Default(1), param.Nullable()), option.QueryInt("pageSize", "size of page", param.Default(10), param.Nullable()))
 	huma.Register(s, huma.Operation{
 		OperationID:   "get-record-by-id",
 		Method:        http.MethodGet,

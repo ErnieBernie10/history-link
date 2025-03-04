@@ -35,6 +35,8 @@ type RecordRepository struct {
 
 type RecordAggregate struct {
 	model.Record
+	History model.RecordHistory
+
 	Impacts []struct {
 		model.Impact
 	}
@@ -44,8 +46,19 @@ func (r RecordRepository) GetById(id uuid.UUID) (RecordAggregate, error) {
 	stmt := SELECT(
 		Record.AllColumns,
 		Impact.AllColumns,
+		RecordHistory.AllColumns,
 	).FROM(
-		Record.LEFT_JOIN(Impact, Impact.RecordID.EQ(Record.ID)),
+		Record.
+			LEFT_JOIN(Impact, Impact.RecordID.EQ(Record.ID)).
+			LEFT_JOIN(
+				RecordHistory,
+				RecordHistory.RecordID.EQ(Record.ID).
+					AND(RecordHistory.UpdatedAt.IN(
+						SELECT(MAX(RecordHistory.UpdatedAt)).
+							FROM(RecordHistory).
+							WHERE(RecordHistory.RecordID.EQ(Record.ID)),
+					)),
+			),
 	).WHERE(
 		Record.ID.EQ(UUID(id)),
 	)
@@ -55,6 +68,8 @@ func (r RecordRepository) GetById(id uuid.UUID) (RecordAggregate, error) {
 	if err != nil {
 		return dest, fmt.Errorf("error getting record: %w", err)
 	}
+
+	fmt.Printf("%+v\n", dest)
 	return dest, nil
 }
 
@@ -279,10 +294,12 @@ func (r RecordRepository) GetPaged(c context.Context, limit int, offset int) ([]
 	stmt = SELECT(
 		Record.AllColumns,
 		Impact.AllColumns,
+		RecordHistory.AllColumns,
 	).FROM(
-		Record.LEFT_JOIN(Impact, Impact.RecordID.EQ(Record.ID)),
-	).LIMIT(int64(limit)).
-		OFFSET(int64(offset))
+		Record.
+			LEFT_JOIN(Impact, Impact.RecordID.EQ(Record.ID)).
+			LEFT_JOIN(RecordHistory, RecordHistory.RecordID.EQ(Record.ID)),
+	).LIMIT(int64(limit)).OFFSET(int64(offset))
 
 	var dest []RecordAggregate
 	err = stmt.Query(r.db, &dest)

@@ -32,6 +32,8 @@ type recordResponseBody struct {
 	EndDate      string           `json:"endDate"`
 	RecordStatus RecordStatus     `json:"recordStatus"`
 	Type         Type             `json:"type"`
+	UpdatedAt    string           `json:"updatedAt"`
+	CreatedAt    string           `json:"createdAt"`
 	Impacts      []impactResponse `json:"impacts"`
 }
 
@@ -89,6 +91,8 @@ func toResponse(record RecordAggregate) recordResponseBody {
 		RecordStatus: RecordStatusFromInt16(record.Status),
 		Type:         TypeFromInt16(record.Type),
 		Impacts:      toImpactResponse(record),
+		UpdatedAt:    common.ToDateTimeString(&record.History.UpdatedAt),
+		CreatedAt:    common.ToDateTimeString(&record.History.CreatedAt),
 	}
 }
 

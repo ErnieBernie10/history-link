@@ -71,6 +71,16 @@ BEGIN
         VALUES (NEW.id, NEW.record_id, NEW.description, NEW.value, NEW.category, NOW(), NOW());
         RETURN NEW;
     END IF;
+
+    IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE' OR TG_OP = 'DELETE') THEN
+        INSERT INTO record_history (record_id, title, description, location, significance, url, start_date, end_date, type, status, created_at, updated_at)
+        SELECT r.id, r.title, r.description, r.location, r.significance, r.url, r.start_date, r.end_date, r.type, r.status, rh.created_at, NOW()
+        FROM record r
+        LEFT JOIN record_history rh ON r.id = rh.record_id
+        WHERE r.id = NEW.record_id
+        ORDER BY rh.updated_at DESC
+        LIMIT 1;
+    END IF;
     END;
 $$ LANGUAGE plpgsql;
 
