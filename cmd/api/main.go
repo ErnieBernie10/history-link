@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"historylink/internal/features/link"
 	"historylink/internal/features/record"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -86,7 +87,9 @@ func main() {
 			// Configure the logger to include source information
 			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{AddSource: true}))
 			rs := record.NewRecordResources(conn, logger)
+			ls := link.NewLinkResources(conn, logger)
 			rs.MountRoutes(api)
+			ls.MountRoutes(api)
 
 			corsRouter := corsMiddleware(router)
 

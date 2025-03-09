@@ -91,9 +91,7 @@ func (r RecordRepository) Create(c context.Context, command RecordAggregate) (Re
 	}
 
 	for i := range command.Impacts {
-		if command.Impacts[i].RecordID == nil {
-			command.Impacts[i].RecordID = &result.ID
-		}
+		command.Impacts[i].RecordID = result.ID
 	}
 
 	if len(command.Impacts) > 0 {
@@ -206,7 +204,7 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 	// 3. Insert new impacts
 	for _, impact := range command.Impacts {
 		if impact.Impact.ID == uuid.Nil {
-			impact.Impact.RecordID = &command.ID
+			impact.Impact.RecordID = command.ID
 
 			insertStmt := Impact.INSERT(Impact.Description, Impact.Value, Impact.Category, Impact.RecordID).
 				MODEL(impact.Impact)

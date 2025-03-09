@@ -14,6 +14,7 @@ import (
 
 type ImpactHistory struct {
 	ID          uuid.UUID `sql:"primary_key"`
+	ImpactID    *uuid.UUID
 	RecordID    *uuid.UUID
 	Description string
 	Value       int16

@@ -13,7 +13,7 @@ import (
 
 type Impact struct {
 	ID          uuid.UUID `sql:"primary_key"`
-	RecordID    *uuid.UUID
+	RecordID    uuid.UUID
 	Description string
 	Value       int16
 	Category    int16

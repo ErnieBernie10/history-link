@@ -113,7 +113,7 @@ SET default_table_access_method = heap;
 
 CREATE TABLE public.impact (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    record_id uuid,
+    record_id uuid NOT NULL,
     description character varying(255) NOT NULL,
     value smallint NOT NULL,
     category smallint NOT NULL
@@ -142,8 +142,8 @@ CREATE TABLE public.impact_history (
 
 CREATE TABLE public.link (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    record_id uuid,
-    record_id2 uuid,
+    record_id uuid NOT NULL,
+    record_id2 uuid NOT NULL,
     strength smallint NOT NULL
 );
 
@@ -202,7 +202,7 @@ CREATE TABLE public.schema_migrations (
 
 CREATE TABLE public.source (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    record_id uuid,
+    record_id uuid NOT NULL,
     title character varying(255) NOT NULL,
     type smallint NOT NULL,
     url character varying(255) NOT NULL,

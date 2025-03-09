@@ -18,6 +18,7 @@ type impactHistoryTable struct {
 
 	// Columns
 	ID          postgres.ColumnString
+	ImpactID    postgres.ColumnString
 	RecordID    postgres.ColumnString
 	Description postgres.ColumnString
 	Value       postgres.ColumnInteger
@@ -65,14 +66,15 @@ func newImpactHistoryTable(schemaName, tableName, alias string) *ImpactHistoryTa
 func newImpactHistoryTableImpl(schemaName, tableName, alias string) impactHistoryTable {
 	var (
 		IDColumn          = postgres.StringColumn("id")
+		ImpactIDColumn    = postgres.StringColumn("impact_id")
 		RecordIDColumn    = postgres.StringColumn("record_id")
 		DescriptionColumn = postgres.StringColumn("description")
 		ValueColumn       = postgres.IntegerColumn("value")
 		CategoryColumn    = postgres.IntegerColumn("category")
 		CreatedAtColumn   = postgres.TimestampColumn("created_at")
 		UpdatedAtColumn   = postgres.TimestampColumn("updated_at")
-		allColumns        = postgres.ColumnList{IDColumn, RecordIDColumn, DescriptionColumn, ValueColumn, CategoryColumn, CreatedAtColumn, UpdatedAtColumn}
-		mutableColumns    = postgres.ColumnList{RecordIDColumn, DescriptionColumn, ValueColumn, CategoryColumn, CreatedAtColumn, UpdatedAtColumn}
+		allColumns        = postgres.ColumnList{IDColumn, ImpactIDColumn, RecordIDColumn, DescriptionColumn, ValueColumn, CategoryColumn, CreatedAtColumn, UpdatedAtColumn}
+		mutableColumns    = postgres.ColumnList{ImpactIDColumn, RecordIDColumn, DescriptionColumn, ValueColumn, CategoryColumn, CreatedAtColumn, UpdatedAtColumn}
 	)
 
 	return impactHistoryTable{
@@ -80,6 +82,7 @@ func newImpactHistoryTableImpl(schemaName, tableName, alias string) impactHistor
 
 		//Columns
 		ID:          IDColumn,
+		ImpactID:    ImpactIDColumn,
 		RecordID:    RecordIDColumn,
 		Description: DescriptionColumn,
 		Value:       ValueColumn,

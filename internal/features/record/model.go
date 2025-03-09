@@ -104,7 +104,7 @@ func toImpactResponse(record RecordAggregate) []impactResponse {
 			Category:    CategoryFromInt16(impact.Category),
 			Description: impact.Description,
 			ID:          impact.ID,
-			RecordID:    *impact.RecordID,
+			RecordID:    impact.RecordID,
 		})
 	}
 	return response

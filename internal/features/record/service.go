@@ -175,7 +175,7 @@ func mapUpdateImpacts(impactCommands []updateImpactCommandBody) []struct{ model.
 			Description: command.Description,
 			Value:       int16(command.Value),
 			Category:    command.Category.ToInt16(),
-			RecordID:    &command.RecordId,
+			RecordID:    command.RecordId,
 		}
 	}
 	return impacts

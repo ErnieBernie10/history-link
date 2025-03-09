@@ -13,7 +13,7 @@ import (
 
 type Source struct {
 	ID          uuid.UUID `sql:"primary_key"`
-	RecordID    *uuid.UUID
+	RecordID    uuid.UUID
 	Title       string
 	Type        int16
 	URL         string

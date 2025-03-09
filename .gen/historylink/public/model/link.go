@@ -13,7 +13,7 @@ import (
 
 type Link struct {
 	ID        uuid.UUID `sql:"primary_key"`
-	RecordID  *uuid.UUID
-	RecordId2 *uuid.UUID
+	RecordID  uuid.UUID
+	RecordId2 uuid.UUID
 	Strength  int16
 }
