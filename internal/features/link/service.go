@@ -8,13 +8,13 @@ import (
 	"historylink/internal/common"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 )
 
 type ILinkService interface {
 	Create(c context.Context, command createLinkCommandBody, targetRecordId uuid.UUID) (linkResponseBody, error)
 	GetById(id uuid.UUID) (linkResponseBody, error)
 	GetByRecordId(c context.Context, recordId uuid.UUID) ([]linkResponseBody, error)
-	Update(c context.Context, id uuid.UUID, command updateLinkCommandBody) error
 	Delete(c context.Context, id uuid.UUID) error
 }
 
@@ -58,13 +58,14 @@ func (s LinkService) GetById(id uuid.UUID) (linkResponseBody, error) {
 }
 
 func (s LinkService) GetByRecordId(c context.Context, recordId uuid.UUID) ([]linkResponseBody, error) {
-	panic("implement me")
-}
+	links, err := s.linkRepository.GetByRecordId(c, recordId)
+	if err != nil {
+		return nil, err
+	}
 
-func (s LinkService) Update(c context.Context, id uuid.UUID, command updateLinkCommandBody) error {
-	panic("implement me")
+	return lo.Map(links, mapLinkResponseBody), nil
 }
 
 func (s LinkService) Delete(c context.Context, id uuid.UUID) error {
-	panic("implement me")
+	return s.linkRepository.Delete(c, id)
 }

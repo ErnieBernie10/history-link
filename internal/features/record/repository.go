@@ -33,13 +33,15 @@ type RecordRepository struct {
 	logger *slog.Logger
 }
 
+type ImpactEntity struct {
+	model.Impact
+}
+
 type RecordAggregate struct {
 	model.Record
 	History model.RecordHistory
 
-	Impacts []struct {
-		model.Impact
-	}
+	Impacts []ImpactEntity
 }
 
 func (r RecordRepository) GetById(id uuid.UUID) (RecordAggregate, error) {
@@ -69,7 +71,6 @@ func (r RecordRepository) GetById(id uuid.UUID) (RecordAggregate, error) {
 		return dest, fmt.Errorf("error getting record: %w", err)
 	}
 
-	fmt.Printf("%+v\n", dest)
 	return dest, nil
 }
 
@@ -99,9 +100,7 @@ func (r RecordRepository) Create(c context.Context, command RecordAggregate) (Re
 			MODELS(command.Impacts).
 			RETURNING(Impact.AllColumns)
 
-		var impacts []struct {
-			model.Impact
-		}
+		var impacts []ImpactEntity
 		if err = impactStmt.Query(tx, &impacts); err != nil {
 			return RecordAggregate{}, fmt.Errorf("error creating impacts: %w", err)
 		}
@@ -116,7 +115,7 @@ func (r RecordRepository) Create(c context.Context, command RecordAggregate) (Re
 	return result, nil
 }
 
-func EqualsRecord(a, b model.Record) bool {
+func (a RecordAggregate) Equal(b RecordAggregate) bool {
 	return a.Title == b.Title &&
 		a.Description == b.Description &&
 		reflect.DeepEqual(a.Location, b.Location) &&
@@ -128,7 +127,7 @@ func EqualsRecord(a, b model.Record) bool {
 		a.Status == b.Status
 }
 
-func EqualsImpact(a, b model.Impact) bool {
+func (a ImpactEntity) Equal(b ImpactEntity) bool {
 	return a.Description == b.Description &&
 		a.Value == b.Value &&
 		a.Category == b.Category
@@ -146,24 +145,22 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 		FROM(Impact).
 		WHERE(Impact.RecordID.EQ(UUID(command.ID)))
 
-	var existingImpacts []struct {
-		model.Impact
-	}
+	var existingImpacts []ImpactEntity
 	err = existingImpactsStmt.Query(tx, &existingImpacts)
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("error getting existing impacts: %w", err)
 	}
 
 	// Create maps for existing and new impacts
-	existingImpactsMap := make(map[uuid.UUID]struct{ model.Impact })
+	existingImpactsMap := make(map[uuid.UUID]ImpactEntity)
 	for _, impact := range existingImpacts {
-		existingImpactsMap[impact.Impact.ID] = impact
+		existingImpactsMap[impact.ID] = impact
 	}
 
-	newImpactsMap := make(map[uuid.UUID]struct{ model.Impact })
+	newImpactsMap := make(map[uuid.UUID]ImpactEntity)
 	for _, impact := range command.Impacts {
-		if impact.Impact.ID != uuid.Nil {
-			newImpactsMap[impact.Impact.ID] = impact
+		if impact.ID != uuid.Nil {
+			newImpactsMap[impact.ID] = impact
 		}
 	}
 
@@ -176,9 +173,9 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 	for id, newImpact := range newImpactsMap {
 		if existingImpact, exists := existingImpactsMap[id]; exists {
 			// Only update if something changed
-			if !EqualsImpact(newImpact.Impact, existingImpact.Impact) {
+			if !newImpact.Equal(existingImpact) {
 				updateStmt := Impact.UPDATE(Impact.Description, Impact.Value, Impact.Category).
-					MODEL(newImpact.Impact).
+					MODEL(newImpact).
 					WHERE(Impact.ID.EQ(UUID(id)))
 
 				_, err = updateStmt.Exec(tx)
@@ -203,11 +200,11 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 
 	// 3. Insert new impacts
 	for _, impact := range command.Impacts {
-		if impact.Impact.ID == uuid.Nil {
-			impact.Impact.RecordID = command.ID
+		if impact.ID == uuid.Nil {
+			impact.RecordID = command.ID
 
 			insertStmt := Impact.INSERT(Impact.Description, Impact.Value, Impact.Category, Impact.RecordID).
-				MODEL(impact.Impact)
+				MODEL(impact)
 
 			_, err = insertStmt.Exec(tx)
 			if err != nil {
@@ -220,9 +217,7 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 		FROM(Record).
 		WHERE(Record.ID.EQ(UUID(command.ID)))
 
-	var existingRecord struct {
-		model.Record
-	}
+	var existingRecord RecordAggregate
 	err = stmt.Query(tx, &existingRecord)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -231,7 +226,7 @@ func (r RecordRepository) Update(c context.Context, command RecordAggregate) err
 		return fmt.Errorf("error getting existing record: %w", err)
 	}
 
-	if EqualsRecord(command.Record, existingRecord.Record) {
+	if command.Equal(existingRecord) {
 		err = tx.Commit()
 		if err != nil {
 			return fmt.Errorf("error committing transaction: %w", err)

@@ -4,6 +4,7 @@ import (
 	"historylink/internal/common"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 )
 
 type pagedResponse[t any] struct {
@@ -14,7 +15,7 @@ type pagedResponse[t any] struct {
 }
 
 type impactResponse struct {
-	Value       int       `json:"value"`
+	Value       int16     `json:"value"`
 	Category    Category  `json:"category"`
 	Description string    `json:"description"`
 	ID          uuid.UUID `json:"id"`
@@ -66,19 +67,19 @@ type updateRecordCommandBody struct {
 
 type createImpactCommandBody struct {
 	Description string   `json:"description" minLength:"1" maxLength:"255"`
-	Value       int      `json:"value" minimum:"1" maximum:"10"`
+	Value       int16    `json:"value" minimum:"1" maximum:"10"`
 	Category    Category `json:"category" enum:"economic,political,social,cultural,tech"`
 }
 
 type updateImpactCommandBody struct {
 	ID          uuid.UUID `json:"id,omitempty"`
 	Description string    `json:"description" minLength:"1" maxLength:"255"`
-	Value       int       `json:"value" minimum:"1" maximum:"10"`
+	Value       int16     `json:"value" minimum:"1" maximum:"10"`
 	Category    Category  `json:"category" enum:"economic,political,social,cultural,tech"`
 	RecordId    uuid.UUID `json:"recordId,omitempty"`
 }
 
-func toResponse(record RecordAggregate) recordResponseBody {
+func (record RecordAggregate) toResponse() recordResponseBody {
 	return recordResponseBody{
 		ID:           record.ID,
 		Title:        record.Title,
@@ -90,22 +91,20 @@ func toResponse(record RecordAggregate) recordResponseBody {
 		EndDate:      common.ToDateString(record.EndDate),
 		RecordStatus: RecordStatusFromInt16(record.Status),
 		Type:         TypeFromInt16(record.Type),
-		Impacts:      toImpactResponse(record),
-		UpdatedAt:    common.ToDateTimeString(&record.History.UpdatedAt),
-		CreatedAt:    common.ToDateTimeString(&record.History.CreatedAt),
+		Impacts: lo.Map(record.Impacts, func(impact ImpactEntity, index int) impactResponse {
+			return impact.toResponse()
+		}),
+		UpdatedAt: common.ToDateTimeString(&record.History.UpdatedAt),
+		CreatedAt: common.ToDateTimeString(&record.History.CreatedAt),
 	}
 }
 
-func toImpactResponse(record RecordAggregate) []impactResponse {
-	var response []impactResponse
-	for _, impact := range record.Impacts {
-		response = append(response, impactResponse{
-			Value:       int(impact.Value),
-			Category:    CategoryFromInt16(impact.Category),
-			Description: impact.Description,
-			ID:          impact.ID,
-			RecordID:    impact.RecordID,
-		})
+func (i ImpactEntity) toResponse() impactResponse {
+	return impactResponse{
+		ID:          i.ID,
+		Value:       i.Value,
+		Category:    CategoryFromInt16(i.Category),
+		Description: i.Description,
+		RecordID:    i.RecordID,
 	}
-	return response
 }

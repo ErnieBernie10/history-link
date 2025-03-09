@@ -291,14 +291,14 @@ CREATE INDEX idx_record_impacts ON public.impact USING btree (record_id);
 -- Name: impact tr_impact_history; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER tr_impact_history AFTER INSERT OR DELETE OR UPDATE ON public.impact FOR EACH ROW EXECUTE FUNCTION public.update_impact_history();
+CREATE TRIGGER tr_impact_history AFTER INSERT OR UPDATE ON public.impact FOR EACH ROW EXECUTE FUNCTION public.update_impact_history();
 
 
 --
 -- Name: record tr_record_history; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER tr_record_history AFTER INSERT OR DELETE OR UPDATE ON public.record FOR EACH ROW EXECUTE FUNCTION public.update_record_history();
+CREATE TRIGGER tr_record_history AFTER INSERT OR UPDATE ON public.record FOR EACH ROW EXECUTE FUNCTION public.update_record_history();
 
 
 --

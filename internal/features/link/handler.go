@@ -92,18 +92,6 @@ func (rs LinkResources) getByRecordId(c context.Context, input *struct {
 	}, nil
 }
 
-func (rs LinkResources) update(c context.Context, input *struct {
-	ID   uuid.UUID `path:"id"`
-	Body updateLinkCommandBody
-}) (*struct{}, error) {
-	err := rs.LinkService.Update(c, input.ID, input.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return &struct{}{}, nil
-}
-
 func (rs LinkResources) delete(c context.Context, input *struct {
 	ID uuid.UUID `path:"id"`
 }) (*struct{}, error) {
@@ -152,4 +140,9 @@ func (rs LinkResources) MountRoutes(s huma.API) {
 			},
 		},
 	}, rs.create)
+	huma.Register(s, huma.Operation{
+		OperationID: "delete-link",
+		Method:      http.MethodDelete,
+		Path:        "/links/{id}",
+	}, rs.delete)
 }

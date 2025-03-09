@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 )
 
 func NewRecordService(recordRepository IRecordRepository, logger *slog.Logger) IRecordService {
@@ -159,39 +160,20 @@ func (s RecordService) Create(context context.Context, command createRecordComma
 			Type:         command.Type.ToInt16(),
 			Status:       command.RecordStatus.ToInt16(),
 		},
-		Impacts: mapCreateImpacts(command.Impacts),
+		Impacts: lo.Map(command.Impacts, func(impact createImpactCommandBody, index int) ImpactEntity {
+			return ImpactEntity{
+				Impact: model.Impact{
+					Description: impact.Description,
+					Value:       impact.Value,
+					Category:    impact.Category.ToInt16(),
+				},
+			}
+		}),
 	})
 	if err != nil {
 		return recordResponseBody{}, err
 	}
-	return toResponse(response), nil
-}
-
-func mapUpdateImpacts(impactCommands []updateImpactCommandBody) []struct{ model.Impact } {
-	impacts := make([]struct{ model.Impact }, len(impactCommands))
-	for i, command := range impactCommands {
-		impacts[i].Impact = model.Impact{
-			ID:          command.ID,
-			Description: command.Description,
-			Value:       int16(command.Value),
-			Category:    command.Category.ToInt16(),
-			RecordID:    command.RecordId,
-		}
-	}
-	return impacts
-}
-
-func mapCreateImpacts(impactCommands []createImpactCommandBody) []struct{ model.Impact } {
-	impacts := make([]struct{ model.Impact }, len(impactCommands))
-	for i, command := range impactCommands {
-		impacts[i].Impact = model.Impact{
-			ID:          uuid.New(),
-			Description: command.Description,
-			Value:       int16(command.Value),
-			Category:    command.Category.ToInt16(),
-		}
-	}
-	return impacts
+	return response.toResponse(), nil
 }
 
 func (s RecordService) GetById(id uuid.UUID) (recordResponseBody, error) {
@@ -199,7 +181,7 @@ func (s RecordService) GetById(id uuid.UUID) (recordResponseBody, error) {
 	if err != nil {
 		return recordResponseBody{}, err
 	}
-	return toResponse(record), nil
+	return record.toResponse(), nil
 }
 
 func (s RecordService) Update(c context.Context, id uuid.UUID, command updateRecordCommandBody) error {
@@ -219,7 +201,16 @@ func (s RecordService) Update(c context.Context, id uuid.UUID, command updateRec
 			Type:         command.Type.ToInt16(),
 			Status:       command.RecordStatus.ToInt16(),
 		},
-		Impacts: mapUpdateImpacts(command.Impacts),
+		Impacts: lo.Map(command.Impacts, func(impact updateImpactCommandBody, index int) ImpactEntity {
+			return ImpactEntity{
+				Impact: model.Impact{
+					ID:          impact.ID,
+					Description: impact.Description,
+					Value:       impact.Value,
+					Category:    impact.Category.ToInt16(),
+				},
+			}
+		}),
 	})
 }
 
@@ -228,11 +219,10 @@ func (s RecordService) GetPaged(c context.Context, page, pageSize int) ([]record
 	if err != nil {
 		return nil, 0, err
 	}
-	var response []recordResponseBody
-	for _, record := range records {
-		response = append(response, toResponse(record))
-	}
-	return response, total, nil
+
+	return lo.Map(records, func(record RecordAggregate, index int) recordResponseBody {
+		return record.toResponse()
+	}), total, nil
 }
 
 func (s RecordService) Delete(c context.Context, id uuid.UUID) error {

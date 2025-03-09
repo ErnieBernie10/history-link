@@ -35,7 +35,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER tr_record_history
-AFTER INSERT OR UPDATE OR DELETE ON record
+AFTER INSERT OR UPDATE ON record
 FOR EACH ROW EXECUTE FUNCTION update_record_history();
 
 
@@ -85,7 +85,7 @@ BEGIN
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER tr_impact_history
-AFTER INSERT OR UPDATE OR DELETE ON impact
+AFTER INSERT OR UPDATE ON impact
 FOR EACH ROW EXECUTE FUNCTION update_impact_history();
 
 -- migrate:down
